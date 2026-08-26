@@ -441,7 +441,7 @@
     position: fixed; pointer-events: none; z-index: 200;
     background: var(--text-primary); color: var(--surface-1);
     font-size: 12px; line-height: 1.4; padding: 8px 10px; border-radius: 6px;
-    max-width: 260px; box-shadow: 0 4px 16px rgba(0,0,0,0.25); white-space: pre-line;
+    max-width: 260px; box-shadow: 0 4px 16px rgba(0,0,0,0.25);
     opacity: 0; transform: translateY(4px); transition: opacity .12s, transform .12s;
   }
   #tt.show { opacity: 1; transform: translateY(0); }
@@ -1315,127 +1315,6 @@ function buildTrendChart(points, key, label, colorVar) {
   return wrap;
 }
 
-// Two series on one chart, indexed to each series' own max (0-100%) instead
-// of a dual y-axis. A dual-axis lets two independently-scaled lines "cross"
-// or "track together" purely as an artifact of arbitrary axis choices --
-// misleading. Indexing to a shared 0-100% base means any visual correlation
-// in SHAPE is real, while the hover tooltip always surfaces the true
-// absolute numbers for both series so nothing is actually hidden.
-function buildCombinedTrendChart(seriesA, seriesB) {
-  const wrap = document.createElement("div"); wrap.className = "trend-wrap";
-  const allDates = Array.from(new Set([...seriesA.points.map(p => p.date), ...seriesB.points.map(p => p.date)])).sort();
-  if (allDates.length < 2) {
-    const note = document.createElement("div"); note.className = "note-banner small";
-    note.innerHTML = `<b>Недостаточно данных за выбранный период для графика.</b>`;
-    wrap.appendChild(note);
-    return wrap;
-  }
-  const mapA = new Map(seriesA.points.map(p => [p.date, p[seriesA.key]]));
-  const mapB = new Map(seriesB.points.map(p => [p.date, p[seriesB.key]]));
-  const maxA = Math.max(...seriesA.points.map(p => p[seriesA.key]), 1);
-  const maxB = Math.max(...seriesB.points.map(p => p[seriesB.key]), 1);
-
-  const W = 640, H = 190, padL = 20, padR = 20, padT = 24, padB = 24;
-  const xStep = (W - padL - padR) / (allDates.length - 1);
-  const yFor = pct => padT + (H - padT - padB) * (1 - pct / 100);
-  const xFor = i => padL + i * xStep;
-
-  const svgNS = "http://www.w3.org/2000/svg";
-  const svg = document.createElementNS(svgNS, "svg");
-  svg.setAttribute("viewBox", `0 0 ${W} ${H}`);
-  svg.classList.add("trend-svg");
-
-  // gridlines at 0/25/50/75/100% -- unitless on purpose, this axis measures
-  // "% of each series' own peak", not a real quantity
-  [0, 25, 50, 75, 100].forEach(pct => {
-    const y = yFor(pct);
-    const gline = document.createElementNS(svgNS, "line");
-    gline.setAttribute("x1", padL); gline.setAttribute("x2", W - padR);
-    gline.setAttribute("y1", y); gline.setAttribute("y2", y);
-    gline.setAttribute("stroke", cssVar("--grid")); gline.setAttribute("stroke-width", "1");
-    svg.appendChild(gline);
-  });
-
-  const smoothPath = pts => {
-    if (pts.length < 2) return "";
-    if (pts.length < 3) return "M " + pts.map(c => c.join(",")).join(" L ");
-    let d = `M ${pts[0][0]},${pts[0][1]}`;
-    for (let i = 0; i < pts.length - 1; i++) {
-      const p0 = pts[i === 0 ? 0 : i - 1], p1 = pts[i], p2 = pts[i + 1], p3 = pts[i + 2 < pts.length ? i + 2 : i + 1];
-      const c1x = p1[0] + (p2[0] - p0[0]) / 6, c1y = p1[1] + (p2[1] - p0[1]) / 6;
-      const c2x = p2[0] - (p3[0] - p1[0]) / 6, c2y = p2[1] - (p3[1] - p1[1]) / 6;
-      d += ` C ${c1x},${c1y} ${c2x},${c2y} ${p2[0]},${p2[1]}`;
-    }
-    return d;
-  };
-
-  [{ series: seriesA, map: mapA, max: maxA }, { series: seriesB, map: mapB, max: maxB }].forEach(({ series, map, max }) => {
-    // gaps (a date one series doesn't have yet, e.g. registrations' later
-    // clean-data start) break the line into segments instead of faking a 0
-    const segments = [[]];
-    allDates.forEach((date, i) => {
-      const v = map.get(date);
-      if (v === undefined) { if (segments[segments.length - 1].length) segments.push([]); return; }
-      segments[segments.length - 1].push([xFor(i), yFor(v / max * 100), date, v]);
-    });
-    segments.filter(s => s.length).forEach(seg => {
-      const path = document.createElementNS(svgNS, "path");
-      path.setAttribute("d", smoothPath(seg.map(c => [c[0], c[1]])));
-      path.setAttribute("fill", "none");
-      path.setAttribute("stroke", cssVar(series.colorVar));
-      path.setAttribute("stroke-width", "3");
-      path.setAttribute("stroke-linejoin", "round"); path.setAttribute("stroke-linecap", "round");
-      svg.appendChild(path);
-      seg.forEach(([cx, cy, date, v]) => {
-        const dot = document.createElementNS(svgNS, "circle");
-        dot.setAttribute("cx", cx); dot.setAttribute("cy", cy); dot.setAttribute("r", "4");
-        dot.setAttribute("fill", cssVar(series.colorVar));
-        dot.setAttribute("stroke", cssVar("--surface-1")); dot.setAttribute("stroke-width", "1.5");
-        svg.appendChild(dot);
-        const hit = document.createElementNS(svgNS, "circle");
-        hit.setAttribute("cx", cx); hit.setAttribute("cy", cy); hit.setAttribute("r", "14");
-        hit.setAttribute("fill", "transparent"); hit.style.cursor = "default";
-        hit.addEventListener("pointermove", ev => {
-          const aVal = series === seriesA ? v : mapA.get(date);
-          const bVal = series === seriesB ? v : mapB.get(date);
-          const lines = [`${seriesA.label}: ${aVal === undefined ? "нет данных" : fmtInt(aVal)}`];
-          lines.push(`${seriesB.label}: ${bVal === undefined ? "нет данных" : fmtInt(bVal)}`);
-          showTip(ev.clientX, ev.clientY, fmtDate(date), lines.join("\n"));
-        });
-        hit.addEventListener("pointerleave", hideTip);
-        svg.appendChild(hit);
-      });
-    });
-  });
-
-  // sparse date labels along the bottom, same cadence rule as the single-series chart
-  const labelEvery = Math.ceil(allDates.length / 8);
-  allDates.forEach((date, i) => {
-    if (i % labelEvery === 0 || i === allDates.length - 1) {
-      const t = document.createElementNS(svgNS, "text");
-      t.setAttribute("x", xFor(i)); t.setAttribute("y", H - 6); t.setAttribute("text-anchor", "middle");
-      t.setAttribute("class", "trend-axis-label");
-      t.textContent = fmtDate(date);
-      svg.appendChild(t);
-    }
-  });
-
-  wrap.appendChild(svg);
-
-  const legend = document.createElement("div");
-  legend.style.cssText = "display:flex;gap:18px;justify-content:center;margin-top:8px;font-size:12px;color:var(--text-secondary);";
-  [seriesA, seriesB].forEach(s => {
-    const item = document.createElement("div"); item.style.cssText = "display:flex;align-items:center;gap:6px;";
-    const dot = document.createElement("span"); dot.style.cssText = `width:8px;height:8px;border-radius:50%;background:${cssVar(s.colorVar)};display:inline-block;`;
-    const txt = document.createElement("span"); txt.textContent = s.label;
-    item.append(dot, txt);
-    legend.appendChild(item);
-  });
-  wrap.appendChild(legend);
-
-  return wrap;
-}
-
 function buildTable(headers, rows, alignRightFrom) {
   const table = document.createElement("table"); table.className = "data-table";
   const thead = document.createElement("thead"); const trh = document.createElement("tr");
@@ -2282,26 +2161,24 @@ function renderTab(containerId, p, deviceLabel) {
       belowFilterZone.appendChild(wrap);
     }
 
-    // ---- traffic + registrations trend, one chart (also filter-reactive) ----
+    // ---- traffic trend (also filter-reactive) ----
+    sectionTitle(belowFilterZone, "Динамика трафика по дням", "сессии в день");
+    const trendCard = document.createElement("div"); trendCard.className = "card reveal";
+    trendCard.appendChild(buildTrendChart(fTrend || [], "sessions", "Сессии", "--series-1"));
+    belowFilterZone.appendChild(trendCard);
+
     // Registrations only use the clean post-fix window (see
-    // SIGN_UP_SUCCESS_CLEAN_START server-side) -- so that series naturally
-    // starts later than sessions when the period spans the bugged days.
-    // The two scales differ by 3+ orders of magnitude, so each is indexed to
-    // its own max (0-100%) on one shared axis instead of a dual y-axis --
-    // see buildCombinedTrendChart. Hover always reveals the real numbers.
+    // SIGN_UP_SUCCESS_CLEAN_START server-side) -- so this chart naturally
+    // starts later than the sessions chart when the period spans the bugged
+    // days, instead of plotting inflated/deflated counts. Kept as its own
+    // chart (not merged into the sessions one) -- the two scales differ by
+    // 3+ orders of magnitude, and separate charts read far more clearly
+    // than either forcing a shared axis or splitting one chart into bands.
     if (fRegTrend.length) {
-      sectionTitle(belowFilterZone, "Динамика трафика и регистраций по дням", "% от максимума за период, наведите на точку для точных цифр");
-      const trendCard = document.createElement("div"); trendCard.className = "card reveal";
-      trendCard.appendChild(buildCombinedTrendChart(
-        { points: fTrend || [], key: "sessions", label: "Сессии", colorVar: "--series-1" },
-        { points: fRegTrend, key: "count", label: "Регистрации", colorVar: "--good" }
-      ));
-      belowFilterZone.appendChild(trendCard);
-    } else {
-      sectionTitle(belowFilterZone, "Динамика трафика по дням", "сессии в день");
-      const trendCard = document.createElement("div"); trendCard.className = "card reveal";
-      trendCard.appendChild(buildTrendChart(fTrend || [], "sessions", "Сессии", "--series-1"));
-      belowFilterZone.appendChild(trendCard);
+      sectionTitle(belowFilterZone, "Динамика регистраций по дням", "успешных регистраций в день");
+      const regTrendCard = document.createElement("div"); regTrendCard.className = "card reveal";
+      regTrendCard.appendChild(buildTrendChart(fRegTrend, "count", "Регистрации", "--good"));
+      belowFilterZone.appendChild(regTrendCard);
     }
 
     // Reactive sections below (feasible from the flat rows -- country/os/
