@@ -2547,7 +2547,6 @@ function buildDomainComparisonTable(panel, domains) {
   wrap.style.marginBottom = "16px";
   const title = document.createElement("div");
   title.style.cssText = "font-size:13px;color:var(--text-secondary);margin-bottom:10px;font-weight:600;";
-  title.textContent = `Сравнение рынков (${domains.length}) — отсортировано по конверсии в регистрацию`;
   wrap.appendChild(title);
 
   const rows = domains.map(d => {
@@ -2557,24 +2556,69 @@ function buildDomainComparisonTable(panel, domains) {
     const signUps = c.events.sign_up_success?.users || 0;
     const conversion = totalUsers ? signUps / totalUsers * 100 : 0;
     return { name: d.name, sessions, totalUsers, signUps, conversion, bounceRate: c.totals.bounceRate || 0 };
-  }).sort((a, b) => b.conversion - a.conversion);
+  });
+
+  const COLS = [
+    { key: "name", label: "Домен", align: "left" },
+    { key: "sessions", label: "Сессии", align: "right" },
+    { key: "totalUsers", label: "Пользователи", align: "right" },
+    { key: "signUps", label: "Регистраций", align: "right" },
+    { key: "conversion", label: "Конверсия", align: "right" },
+    { key: "bounceRate", label: "Отказы", align: "right" },
+  ];
+  // Default: conversion, descending -- same starting view as before this got sortable
+  let sortKey = "conversion", sortDir = -1;
 
   const table = document.createElement("table");
   table.className = "events-table";
-  table.innerHTML = `<thead><tr><th>Домен</th><th style="text-align:right">Сессии</th><th style="text-align:right">Пользователи</th>
-    <th style="text-align:right">Регистраций</th><th style="text-align:right">Конверсия</th><th style="text-align:right">Отказы</th></tr></thead>`;
-  const tbody = document.createElement("tbody");
-  rows.forEach(r => {
-    const tr = document.createElement("tr");
-    tr.innerHTML = `<td>${r.name}</td><td class="num">${fmtInt(r.sessions)}</td><td class="num">${fmtInt(r.totalUsers)}</td>
-      <td class="num">${r.signUps ? fmtInt(r.signUps) : "—"}</td>
-      <td class="num" style="font-weight:600;">${r.signUps ? fmtPct(r.conversion) : "—"}</td>
-      <td class="num">${fmtPct(r.bounceRate)}</td>`;
-    tbody.appendChild(tr);
+  const thead = document.createElement("thead");
+  const headRow = document.createElement("tr");
+  COLS.forEach(col => {
+    const th = document.createElement("th");
+    th.style.textAlign = col.align;
+    th.style.cursor = "pointer";
+    th.style.userSelect = "none";
+    th.dataset.key = col.key;
+    th.addEventListener("click", () => {
+      if (sortKey === col.key) sortDir = -sortDir; else { sortKey = col.key; sortDir = col.key === "name" ? 1 : -1; }
+      render();
+    });
+    headRow.appendChild(th);
   });
+  thead.appendChild(headRow);
+  table.appendChild(thead);
+  const tbody = document.createElement("tbody");
   table.appendChild(tbody);
   wrap.appendChild(table);
   panel.prepend(wrap);
+
+  function render() {
+    const dirLabel = sortDir === 1 ? "по возрастанию" : "по убыванию";
+    const colLabel = COLS.find(c => c.key === sortKey).label.toLowerCase();
+    title.textContent = `Сравнение рынков (${domains.length}) — отсортировано по: ${colLabel} (${dirLabel})`;
+
+    headRow.querySelectorAll("th").forEach(th => {
+      const isActive = th.dataset.key === sortKey;
+      th.innerHTML = COLS.find(c => c.key === th.dataset.key).label + (isActive ? (sortDir === 1 ? " ▲" : " ▼") : "");
+    });
+
+    const sorted = [...rows].sort((a, b) => {
+      const av = a[sortKey], bv = b[sortKey];
+      if (typeof av === "string") return sortDir * av.localeCompare(bv);
+      return sortDir * (av - bv);
+    });
+
+    tbody.innerHTML = "";
+    sorted.forEach(r => {
+      const tr = document.createElement("tr");
+      tr.innerHTML = `<td>${r.name}</td><td class="num">${fmtInt(r.sessions)}</td><td class="num">${fmtInt(r.totalUsers)}</td>
+        <td class="num">${r.signUps ? fmtInt(r.signUps) : "—"}</td>
+        <td class="num" style="font-weight:600;">${r.signUps ? fmtPct(r.conversion) : "—"}</td>
+        <td class="num">${fmtPct(r.bounceRate)}</td>`;
+      tbody.appendChild(tr);
+    });
+  }
+  render();
 }
 
 function combineProps(desktop, mobile) {
