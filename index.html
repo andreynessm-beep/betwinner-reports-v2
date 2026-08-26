@@ -1,0 +1,2749 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="robots" content="noindex, nofollow">
+<title>betwinner.com — отчёт по веб-аналитике</title>
+<style>
+  :root {
+    color-scheme: light;
+    --surface-1: #ffffff;
+    --page: #f2f4f8;
+    --text-primary: #0b1220;
+    --text-secondary: #52596b;
+    --text-muted: #8a90a3;
+    --grid: #e6e9f0;
+    --baseline: #c3c2b7;
+    --border: rgba(11,18,32,0.08);
+    --card-shadow: 0 1px 2px rgba(15,23,42,0.04), 0 6px 20px rgba(15,23,42,0.06);
+    --card-shadow-hover: 0 4px 10px rgba(15,23,42,0.06), 0 14px 34px rgba(15,23,42,0.10);
+    --series-1: #2a78d6;
+    --series-2: #eb6834;
+    --series-3: #1baf7a;
+    --series-4: #eda100;
+    --series-5: #e87ba4;
+    --series-6: #008300;
+    --series-7: #4a3aa7;
+    --series-other: #8a90a3;
+    --good: #0ca30c;
+    --warning: #fab219;
+    --serious: #ec835a;
+    --critical: #d03b3b;
+    --seq-250: #86b6ef;
+    --seq-350: #5598e7;
+    --seq-450: #2a78d6;
+    --seq-550: #1c5cab;
+    --brand-a: #2a78d6;
+    --brand-b: #6d4ae0;
+    --page-glow: radial-gradient(1200px 480px at 12% -10%, rgba(42,120,214,0.10), transparent 60%),
+                 radial-gradient(900px 420px at 95% 0%, rgba(109,74,224,0.08), transparent 55%);
+  }
+  * { box-sizing: border-box; }
+  html, body {
+    margin: 0; padding: 0;
+    background: var(--page);
+    color: var(--text-primary);
+    font-family: system-ui, -apple-system, "Segoe UI", sans-serif;
+  }
+  body { min-height: 100vh; background-image: var(--page-glow); background-attachment: fixed; }
+
+  /* transition + class-toggle, not @keyframes — driven by style diffing rather
+     than the animation timeline, so it can't get stuck mid-way */
+  .reveal { opacity: 0; transform: translateY(10px); transition: opacity .45s cubic-bezier(.2,.7,.3,1), transform .45s cubic-bezier(.2,.7,.3,1); }
+  .reveal.revealed { opacity: 1; transform: translateY(0); }
+
+  @media (prefers-reduced-motion: reduce) {
+    * { transition-duration: .001ms !important; animation-duration: .001ms !important; }
+  }
+
+  /* ---------- password gate ---------- */
+  #gate {
+    position: fixed; inset: 0; z-index: 100;
+    display: flex; align-items: center; justify-content: center;
+    background:
+      radial-gradient(900px 500px at 15% 10%, rgba(42,120,214,0.35), transparent 60%),
+      radial-gradient(900px 500px at 85% 90%, rgba(109,74,224,0.30), transparent 60%),
+      linear-gradient(160deg, #0b1220, #131b31 55%, #0b1220);
+  }
+  #gate.hidden { display: none; }
+  .gate-card {
+    background: rgba(255,255,255,0.06);
+    backdrop-filter: blur(18px);
+    -webkit-backdrop-filter: blur(18px);
+    border: 1px solid rgba(255,255,255,0.14);
+    border-radius: 18px;
+    box-shadow: 0 20px 60px rgba(0,0,0,0.45);
+    padding: 40px 32px;
+    width: 100%; max-width: 360px;
+    text-align: center;
+    animation: revealUp .6s cubic-bezier(.2,.7,.3,1) both;
+  }
+  .gate-logo { margin: 0 auto 18px; }
+  .gate-card h1 { font-size: 18px; margin: 0 0 6px; color: #fff; }
+  .gate-card p { font-size: 13px; color: rgba(255,255,255,0.6); margin: 0 0 20px; }
+  .gate-card input {
+    width: 100%; padding: 12px 14px; font-size: 14px;
+    border: 1px solid rgba(255,255,255,0.16); border-radius: 10px;
+    background: rgba(255,255,255,0.06); color: #fff;
+    margin-bottom: 12px; outline: none; transition: border-color .15s, background .15s;
+  }
+  .gate-card input::placeholder { color: rgba(255,255,255,0.35); }
+  .gate-card input:focus { border-color: var(--brand-a); background: rgba(255,255,255,0.1); }
+  .gate-card button {
+    width: 100%; padding: 12px 14px; font-size: 14px; font-weight: 700;
+    border: none; border-radius: 10px;
+    background: linear-gradient(135deg, var(--brand-a), var(--brand-b));
+    color: #fff; cursor: pointer;
+    box-shadow: 0 8px 20px rgba(42,120,214,0.35);
+    transition: transform .15s, box-shadow .15s;
+  }
+  .gate-card button:hover { transform: translateY(-1px); box-shadow: 0 10px 26px rgba(42,120,214,0.45); }
+  .gate-card button:active { transform: translateY(0); }
+  .gate-error { color: #ff8a8a; font-size: 12px; margin-top: 12px; min-height: 16px; }
+
+  /* ---------- app shell ---------- */
+  #app { display: none; max-width: 1120px; margin: 0 auto; padding: 0 20px 60px; }
+  #app.visible { display: block; }
+
+  header.report-header {
+    display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 16px;
+    margin: 0 -20px 24px; padding: 26px 20px 28px;
+    background: linear-gradient(120deg, #0b1220 0%, #16223f 55%, #221a45 100%);
+    border-radius: 0 0 20px 20px;
+    box-shadow: 0 10px 30px rgba(11,18,32,0.18);
+  }
+  .header-left { display: flex; align-items: center; gap: 14px; }
+  .logo-mark {
+    width: 44px; height: 44px; border-radius: 12px; flex-shrink: 0;
+    background: linear-gradient(135deg, var(--brand-a), var(--brand-b));
+    box-shadow: 0 6px 18px rgba(42,120,214,0.4), inset 0 1px 0 rgba(255,255,255,0.25);
+    display: flex; align-items: center; justify-content: center;
+    font-weight: 800; font-size: 17px; color: #fff; letter-spacing: -0.5px;
+  }
+  header.report-header h1 { font-size: 20px; margin: 0; color: #fff; font-weight: 700; }
+  header.report-header .sub { font-size: 12.5px; color: rgba(255,255,255,0.55); margin-top: 4px; }
+  header.report-header .sub b { color: rgba(255,255,255,0.92); font-weight: 600; }
+  .period-badge {
+    display: inline-flex; align-items: center; gap: 6px;
+    background: rgba(255,255,255,0.08); border: 1px solid rgba(255,255,255,0.14);
+    color: #fff; font-size: 12px; font-weight: 600;
+    padding: 8px 14px; border-radius: 999px; white-space: nowrap;
+  }
+  .period-badge .dot { width: 7px; height: 7px; border-radius: 50%; background: #34e08a; box-shadow: 0 0 0 3px rgba(52,224,138,0.25); }
+  .header-controls { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+  select.top-select {
+    background: rgba(255,255,255,0.08); border: 1px solid rgba(255,255,255,0.16);
+    color: #fff; font-size: 12.5px; font-weight: 600;
+    padding: 8px 12px; border-radius: 999px; cursor: pointer; appearance: none;
+    -webkit-appearance: none;
+  }
+  select.top-select:hover { background: rgba(255,255,255,0.14); }
+  select.top-select option { color: #111; background: #fff; }
+  .site-lite-note {
+    display: flex; align-items: center; gap: 10px; padding: 14px 18px; margin-bottom: 20px;
+    background: color-mix(in srgb, var(--series-4) 12%, transparent); border: 1px solid color-mix(in srgb, var(--series-4) 35%, transparent);
+    border-radius: 12px; font-size: 13px; color: var(--text-secondary);
+  }
+  .period-picker { margin-bottom: 22px; }
+  .period-row { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 6px; }
+  .period-pill {
+    padding: 7px 14px; border-radius: 8px; font-size: 12.5px; font-weight: 600;
+    background: var(--surface-1); border: 1.5px solid var(--border); color: var(--text-secondary);
+    cursor: pointer; white-space: nowrap; transition: background .15s, color .15s, border-color .15s;
+  }
+  .period-pill:hover { border-color: var(--brand-a); color: var(--text-primary); }
+  .period-pill.active { background: var(--brand-a); border-color: var(--brand-a); color: #fff; }
+  .period-pill:disabled { opacity: .35; cursor: not-allowed; }
+  .period-pill:disabled:hover { border-color: var(--border); color: var(--text-secondary); }
+  #period-row-days .period-pill { padding: 6px 10px; min-width: 34px; text-align: center; }
+
+  .tabs { display: flex; gap: 4px; border-bottom: 1px solid var(--grid); margin-bottom: 24px; position: relative; }
+  .tab-btn {
+    padding: 10px 18px; font-size: 14px; font-weight: 600;
+    background: none; border: none; cursor: pointer;
+    color: var(--text-secondary);
+    border-bottom: 2px solid transparent;
+    margin-bottom: -1px;
+    transition: color .15s;
+    border-radius: 8px 8px 0 0;
+  }
+  .tab-btn.active { color: var(--brand-a); border-bottom-color: var(--brand-a); }
+  .tab-btn:hover:not(.active) { color: var(--text-primary); background: rgba(42,120,214,0.06); }
+
+  .tab-panel { display: none; }
+  .tab-panel.active { display: block; }
+
+  .note-banner {
+    background: var(--surface-1); border: 1px solid var(--border); border-left: 3px solid var(--warning);
+    border-radius: 8px; padding: 12px 16px; font-size: 13px; color: var(--text-secondary);
+    margin-bottom: 20px; line-height: 1.5;
+  }
+  .note-banner b { color: var(--text-primary); }
+  .note-banner.small { font-size: 12px; padding: 10px 14px; margin: 0 0 14px; }
+
+  /* ---------- executive summary ---------- */
+  .exec-summary {
+    background: var(--surface-1); border: 1px solid var(--border); border-radius: 10px;
+    padding: 18px 20px; box-shadow: var(--card-shadow); margin-bottom: 22px;
+  }
+  .exec-summary h2 { font-size: 13px; text-transform: uppercase; letter-spacing: .03em; color: var(--text-muted); margin: 0 0 12px; font-weight: 700; }
+  .exec-summary ul { margin: 0; padding: 0 0 0 20px; }
+  .exec-summary li { font-size: 14px; line-height: 1.6; margin-bottom: 8px; color: var(--text-primary); }
+  .exec-summary li:last-child { margin-bottom: 0; }
+  .exec-summary li b { color: var(--series-1); }
+
+  .section-title { font-size: 15px; font-weight: 700; margin: 28px 0 12px; }
+  .section-title .hint { font-weight: 400; font-size: 12px; color: var(--text-muted); margin-left: 6px; }
+  .subsection-title { font-size: 12px; font-weight: 700; text-transform: uppercase; letter-spacing: .02em; color: var(--text-muted); margin: 0 0 10px; }
+
+  /* ---------- filter bar ---------- */
+  .filter-bar { display: flex; flex-wrap: nowrap; gap: 10px; margin: 22px 0 18px; align-items: center; }
+  .filter-field { position: relative; flex: 1 1 0; min-width: 0; }
+  .filter-select {
+    appearance: none; -webkit-appearance: none; cursor: pointer;
+    display: flex; align-items: center; gap: 8px;
+    background: var(--surface-1); border: 1.5px solid var(--border); border-radius: 10px;
+    padding: 8px 34px 8px 12px; font-size: 13px; font-weight: 600; color: var(--text-primary);
+    box-shadow: var(--card-shadow); width: 100%;
+    overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+    transition: border-color .15s, box-shadow .15s;
+  }
+  .filter-select:hover { border-color: var(--brand-a); }
+  .filter-select:focus-visible { outline: 2px solid var(--brand-a); outline-offset: 1px; }
+  .filter-field::after {
+    content: "▾"; position: absolute; right: 12px; top: 50%; transform: translateY(-50%);
+    color: var(--text-muted); font-size: 11px; pointer-events: none;
+  }
+  .filter-field.active .filter-select { border-color: var(--brand-a); background: color-mix(in srgb, var(--brand-a) 5%, var(--surface-1)); }
+  .filter-clear {
+    flex: 0 0 auto;
+    font-size: 12px; font-weight: 700; color: var(--brand-a); background: none; border: none; cursor: pointer;
+    padding: 8px 6px; opacity: 0; pointer-events: none; transition: opacity .15s;
+  }
+  .filter-clear.show { opacity: 1; pointer-events: auto; }
+  .filter-clear:hover { text-decoration: underline; }
+
+  .funnel-toggle { display: flex; gap: 6px; margin-bottom: 14px; }
+  .funnel-toggle-btn {
+    font-size: 12.5px; font-weight: 700; padding: 7px 14px; border-radius: 999px;
+    border: 1.5px solid var(--border); background: var(--surface-1); color: var(--text-secondary);
+    cursor: pointer; transition: all .15s;
+  }
+  .funnel-toggle-btn:hover { border-color: var(--brand-a); color: var(--text-primary); }
+  .funnel-toggle-btn.active { background: var(--brand-a); border-color: var(--brand-a); color: #fff; }
+
+  /* ---------- KPI tiles ---------- */
+  .kpi-grid {
+    display: grid; grid-template-columns: repeat(4, 1fr);
+    gap: 12px;
+  }
+  @media (max-width: 860px) { .kpi-grid { grid-template-columns: repeat(2, 1fr); } }
+  @media (max-width: 480px) { .kpi-grid { grid-template-columns: 1fr; } }
+  .kpi-grid .kpi-tile:nth-child(1) { transition-delay: .02s; }
+  .kpi-grid .kpi-tile:nth-child(2) { transition-delay: .08s; }
+  .kpi-grid .kpi-tile:nth-child(3) { transition-delay: .14s; }
+  .kpi-grid .kpi-tile:nth-child(4) { transition-delay: .20s; }
+  .kpi-grid .kpi-tile:nth-child(5) { transition-delay: .26s; }
+  .kpi-tile {
+    background: var(--surface-1); border: 1px solid var(--border); border-radius: 14px;
+    padding: 16px 18px; box-shadow: var(--card-shadow); position: relative; cursor: default;
+    overflow: hidden; transition: transform .18s ease, box-shadow .18s ease;
+  }
+  .kpi-tile:hover { transform: translateY(-2px); box-shadow: var(--card-shadow-hover); }
+  .kpi-tile::before {
+    content: ""; position: absolute; inset: 0 0 auto 0; height: 3px;
+    background: var(--kpi-accent, var(--brand-a));
+  }
+  .kpi-tile-top { display: flex; align-items: flex-start; justify-content: space-between; gap: 8px; margin-bottom: 10px; }
+  .kpi-icon {
+    width: 30px; height: 30px; border-radius: 9px; flex-shrink: 0;
+    display: flex; align-items: center; justify-content: center;
+    background: color-mix(in srgb, var(--kpi-accent, var(--brand-a)) 14%, transparent);
+    color: var(--kpi-accent, var(--brand-a));
+  }
+  .kpi-icon svg { width: 16px; height: 16px; }
+  .kpi-tile .kpi-label { font-size: 12px; color: var(--text-secondary); display: flex; align-items: center; gap: 4px; }
+  .kpi-tile .kpi-value { font-size: 28px; font-weight: 800; line-height: 1.1; letter-spacing: -.02em; font-variant-numeric: tabular-nums; }
+  .kpi-tile .kpi-value.dim { color: var(--text-muted); font-size: 15px; font-weight: 600; }
+  .kpi-tile .kpi-sub { font-size: 12px; color: var(--text-secondary); margin-top: 3px; font-variant-numeric: tabular-nums; }
+  .info-dot {
+    display: inline-flex; align-items: center; justify-content: center;
+    width: 14px; height: 14px; border-radius: 50%;
+    background: var(--grid); color: var(--text-secondary);
+    font-size: 10px; font-weight: 700; cursor: help;
+  }
+
+  /* ---------- cards ---------- */
+  .card {
+    background: var(--surface-1); border: 1px solid var(--border); border-radius: 14px;
+    padding: 20px; box-shadow: var(--card-shadow);
+  }
+  .chart-row { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+  .two-col { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+  @media (max-width: 720px) { .chart-row, .two-col { grid-template-columns: 1fr; } }
+
+  .legend { display: flex; flex-direction: column; gap: 6px; margin-top: 10px; }
+  .legend-item { display: flex; align-items: center; gap: 8px; font-size: 12px; cursor: default; }
+  .legend-swatch { width: 10px; height: 10px; border-radius: 2px; flex-shrink: 0; }
+  .legend-label { color: var(--text-primary); flex: 1; }
+  .legend-value { color: var(--text-secondary); font-variant-numeric: tabular-nums; }
+
+  /* ---------- ranked bars ---------- */
+  .bar-list { display: flex; flex-direction: column; gap: 10px; }
+  .bar-row { display: grid; grid-template-columns: 160px 1fr 70px; align-items: center; gap: 10px; font-size: 12px; }
+  .bar-row.compact { grid-template-columns: 120px 1fr 60px; }
+  .bar-track { background: var(--grid); border-radius: 6px; height: 22px; overflow: hidden; cursor: default; }
+  .bar-fill {
+    height: 100%; border-radius: 6px; width: 0 !important; transition: width .8s cubic-bezier(.2,.8,.2,1);
+    background: linear-gradient(90deg, var(--brand-a), #4c9be8);
+    box-shadow: inset 0 1px 0 rgba(255,255,255,0.25);
+  }
+  .bar-fill.animate-in { width: var(--target-w, 0%) !important; }
+  .bar-count { text-align: right; font-variant-numeric: tabular-nums; color: var(--text-secondary); font-weight: 600; }
+  .bar-row-label { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--text-primary); }
+  .bar-row.expandable .bar-row-label { cursor: pointer; color: var(--brand-a); text-decoration: underline dotted; font-weight: 600; }
+  .bar-sub-list {
+    display: grid; grid-template-rows: 0fr; transition: grid-template-rows .3s ease;
+    margin: 0 0 0 0; padding-left: 12px; border-left: 2px solid var(--grid);
+  }
+  .bar-sub-list > div { overflow: hidden; }
+  .bar-sub-list.open { grid-template-rows: 1fr; margin: 2px 0 4px 0; }
+
+  /* ---------- visual funnel (continuous layered "3D" cone, matches reference) ---------- */
+  .vfunnel2 { display: grid; grid-template-columns: 150px 1fr; gap: 16px; align-items: stretch; }
+  .vfunnel2-labels { display: grid; gap: 8px; }
+  .vfunnel-label-chip {
+    display: flex; align-items: center; padding: 0 14px; border-radius: 10px;
+    color: #fff; font-size: 13px; font-weight: 700; line-height: 1.25;
+    box-shadow: inset 0 1px 0 rgba(255,255,255,0.25), 0 4px 10px rgba(0,0,0,0.08);
+  }
+  .vfunnel2-graphic { position: relative; }
+  .vfunnel-svg {
+    width: 100%; height: auto; display: block; overflow: visible;
+    animation: vfunnelGlow 3.6s ease-in-out infinite;
+    transition: filter .25s ease;
+  }
+  .vfunnel2-graphic:hover .vfunnel-svg { filter: drop-shadow(0 0 22px rgba(90,91,224,0.5)) brightness(1.05); }
+  @keyframes vfunnelGlow {
+    0%, 100% { filter: drop-shadow(0 2px 10px rgba(15,23,42,0.12)); }
+    50% { filter: drop-shadow(0 6px 22px rgba(90,91,224,0.30)); }
+  }
+  .vfunnel-poly { transform: scaleY(0); transform-origin: center top; transition: transform .5s cubic-bezier(.2,.8,.2,1); }
+  .vfunnel-poly.animate-in { transform: scaleY(1); }
+  .vfunnel-cap { opacity: 0; transition: opacity .3s ease; }
+  .vfunnel-cap.animate-in { opacity: 1; }
+  .vfunnel-value-text {
+    fill: #fff; font-weight: 800; font-size: 16px; text-anchor: middle; dominant-baseline: middle;
+    paint-order: stroke; stroke: rgba(0,0,0,0.18); stroke-width: 3px; stroke-linejoin: round;
+    opacity: 0; transition: opacity .3s ease;
+  }
+  .vfunnel-value-text.animate-in { opacity: 1; }
+
+  .vfunnel-pill {
+    position: absolute; left: 50%; display: inline-flex; align-items: center; gap: 4px;
+    background: var(--surface-1); border: 1.5px solid var(--border); border-radius: 999px;
+    padding: 3px 11px; font-size: 11.5px; font-weight: 800; color: var(--text-primary);
+    box-shadow: 0 3px 10px rgba(15,23,42,0.14);
+    transform: translate(-50%, -50%) scale(0); transition: transform .35s cubic-bezier(.34,1.56,.64,1);
+    z-index: 2; white-space: nowrap;
+  }
+  .vfunnel-pill.animate-in { transform: translate(-50%, -50%) scale(1); }
+  .vfunnel-pill .arrow { color: var(--text-muted); font-size: 9px; }
+
+  /* ---------- line/trend chart ---------- */
+  .trend-wrap { display: flex; flex-direction: column; }
+  .trend-svg { width: 100%; height: auto; }
+  .trend-axis-label { font-size: 10px; fill: var(--text-muted); }
+  .trend-value-label {
+    font-size: 10.5px; font-weight: 700; fill: var(--text-primary);
+    paint-order: stroke; stroke: var(--surface-1); stroke-width: 3px; stroke-linejoin: round;
+  }
+
+  /* ---------- generic data table ---------- */
+  table.data-table, table.events-table { width: 100%; border-collapse: collapse; font-size: 13px; }
+  table.data-table th, table.events-table th {
+    text-align: left; font-size: 11px; text-transform: uppercase; letter-spacing: .02em;
+    color: var(--text-muted); font-weight: 600; padding: 8px 10px; border-bottom: 1px solid var(--grid);
+    white-space: nowrap;
+  }
+  table.data-table td, table.events-table td { padding: 9px 10px; border-bottom: 1px solid var(--grid); vertical-align: top; transition: background .12s; }
+  table.data-table tr:last-child td, table.events-table tr:last-child td { border-bottom: none; }
+  table.data-table .num, table.events-table .num { text-align: right; font-variant-numeric: tabular-nums; white-space: nowrap; }
+  table.data-table td.name-cell { max-width: 320px; overflow-wrap: anywhere; }
+  table.data-table tbody tr:not(.group-row):not(.sub-row):nth-child(even) td,
+  table.events-table tbody tr:not(.detail-row):nth-child(even) td { background: color-mix(in srgb, var(--brand-a) 2.5%, transparent); }
+  table.data-table tbody tr:hover td, table.events-table tbody tr:hover td { background: color-mix(in srgb, var(--brand-a) 6%, transparent); }
+  tr.zero-row { opacity: 0.5; }
+  tr.group-row td { font-weight: 700; background: color-mix(in srgb, var(--brand-a) 4%, var(--page)); }
+  tr.sub-row td.name-cell { padding-left: 26px; color: var(--text-secondary); font-weight: 400; font-size: 12px; }
+  .event-name-cell { display: flex; align-items: center; gap: 6px; cursor: default; }
+  .event-name-cell.expandable { cursor: pointer; }
+  .event-name-cell.expandable .event-label { color: var(--series-1); text-decoration: underline dotted; }
+  .chevron { font-size: 9px; color: var(--text-muted); transition: transform .15s; display: inline-block; }
+  .chevron.open { transform: rotate(90deg); }
+  .event-code { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 11px; color: var(--text-muted); }
+  .event-desc { color: var(--text-secondary); }
+  .zero-tag { font-size: 10px; color: var(--text-muted); background: var(--grid); padding: 2px 6px; border-radius: 4px; }
+  .detail-row td { background: var(--page); padding: 4px 10px 10px 30px; }
+  .detail-list { display: flex; flex-direction: column; gap: 4px; font-size: 12px; }
+  .detail-list .drow { display: flex; justify-content: space-between; gap: 12px; }
+  .detail-list .dval { color: var(--text-secondary); }
+  .detail-list .dcount { font-variant-numeric: tabular-nums; font-weight: 600; }
+
+  .show-more-btn {
+    display: inline-block; margin-top: 12px; padding: 7px 14px; font-size: 12px; font-weight: 600;
+    border: 1px solid var(--border); border-radius: 6px; background: var(--page); color: var(--text-primary);
+    cursor: pointer;
+  }
+  .show-more-btn:hover { background: var(--grid); }
+
+  /* ---------- new vs returning mini stat ---------- */
+  .split-stat { display: flex; gap: 24px; flex-wrap: wrap; }
+  .split-stat-item { flex: 1; min-width: 140px; }
+  .split-stat-item .n { font-size: 24px; font-weight: 700; }
+  .split-stat-item .l { font-size: 12px; color: var(--text-secondary); margin-top: 2px; }
+  .split-bar { display: flex; height: 14px; border-radius: 7px; overflow: hidden; margin-top: 14px; background: var(--grid); }
+
+  /* ---------- collapsible section (animated, progressive disclosure) ---------- */
+  .section-collapse { margin-top: 4px; border-top: 1px solid var(--grid); }
+  .section-collapse-header {
+    all: unset; box-sizing: border-box; cursor: pointer; width: 100%;
+    font-size: 14px; font-weight: 700; color: var(--text-primary);
+    padding: 15px 4px; display: flex; align-items: center; gap: 10px;
+    border-radius: 8px; transition: background .15s;
+  }
+  .section-collapse-header:hover { background: rgba(42,120,214,0.05); }
+  .section-collapse-header:focus-visible { outline: 2px solid var(--brand-a); outline-offset: 2px; }
+  .section-collapse-header .chevron-ico {
+    display: inline-flex; align-items: center; justify-content: center;
+    width: 20px; height: 20px; border-radius: 6px; background: var(--grid); color: var(--text-muted);
+    font-size: 10px; transition: transform .2s ease, background .2s, color .2s; flex-shrink: 0;
+  }
+  .section-collapse.open .chevron-ico { transform: rotate(90deg); background: var(--brand-a); color: #fff; }
+  .section-collapse-header .tech-hint { font-weight: 400; font-size: 12px; color: var(--text-muted); }
+  .section-collapse-animate { display: grid; grid-template-rows: 0fr; transition: grid-template-rows .35s cubic-bezier(.2,.8,.2,1); }
+  .section-collapse.open .section-collapse-animate { grid-template-rows: 1fr; }
+  .section-collapse-body { overflow: hidden; padding: 4px 4px 18px; min-height: 0; }
+
+  .funnel-highlight { margin: 24px 0 4px; }
+  .funnel-highlight-title { font-size: 17px; font-weight: 800; margin-bottom: 2px; letter-spacing: -.01em; }
+  .funnel-highlight-hint { font-size: 12.5px; color: var(--text-muted); margin-bottom: 14px; }
+  .funnel-scope-note { font-size: 12px; color: var(--text-muted); margin-top: 14px; padding-top: 14px; border-top: 1px dashed var(--grid); }
+  .funnel-card { position: relative; overflow: hidden; }
+  .funnel-card::before {
+    content: ""; position: absolute; inset: 0; pointer-events: none; border-radius: inherit;
+    background: linear-gradient(135deg, color-mix(in srgb, var(--brand-a) 5%, transparent), transparent 40%);
+  }
+
+  /* ---------- tooltip (custom, follows pointer) ---------- */
+  #tt {
+    position: fixed; pointer-events: none; z-index: 200;
+    background: var(--text-primary); color: var(--surface-1);
+    font-size: 12px; line-height: 1.4; padding: 8px 10px; border-radius: 6px;
+    max-width: 260px; box-shadow: 0 4px 16px rgba(0,0,0,0.25);
+    opacity: 0; transform: translateY(4px); transition: opacity .12s, transform .12s;
+  }
+  #tt.show { opacity: 1; transform: translateY(0); }
+  #tt .tt-title { font-weight: 700; margin-bottom: 2px; }
+
+
+  #loading-indicator {
+    display: flex; align-items: center; gap: 12px; justify-content: center;
+    padding: 60px 20px; color: var(--text-secondary); font-size: 14px;
+  }
+  .spinner {
+    width: 22px; height: 22px; border-radius: 50%;
+    border: 3px solid var(--border); border-top-color: var(--brand-a);
+    animation: spin 0.8s linear infinite;
+  }
+  @keyframes spin { to { transform: rotate(360deg); } }
+</style>
+</head>
+<body>
+
+<div id="gate">
+  <div class="gate-card">
+    <div class="logo-mark gate-logo" style="margin-left:auto;margin-right:auto;">bw</div>
+    <h1>betwinner.com — отчёт</h1>
+    <p>Доступ только по паролю</p>
+    <input type="password" id="gate-pass" placeholder="Пароль" autocomplete="off">
+    <button id="gate-btn">Войти</button>
+    <div class="gate-error" id="gate-error"></div>
+  </div>
+</div>
+
+<div id="app">
+  <header class="report-header">
+    <div class="header-left">
+      <div class="logo-mark">bw</div>
+      <div>
+        <h1 id="report-title">betwinner.com — веб-аналитика</h1>
+        <div class="sub" id="report-sub">Обновлено: <b id="generated-at">—</b> · Источник: GA4 · дефолт-домен, шаблон для остальных</div>
+      </div>
+    </div>
+    <div class="header-controls">
+      <select id="site-switcher" class="top-select"></select>
+      <div class="period-badge"><span class="dot"></span><span id="period-label">с 17.08.2026</span></div>
+    </div>
+  </header>
+
+  <div id="loading-indicator"><div class="spinner"></div><span>Загружаем данные отчёта…</span></div>
+
+  <div class="period-picker" id="period-picker" style="display:none;">
+    <div class="period-row" id="period-row-months"></div>
+    <div class="period-row" id="period-row-weeks" style="display:none;"></div>
+    <div class="period-row" id="period-row-days" style="display:none;"></div>
+  </div>
+
+  <div class="tabs" id="device-tabs" style="display:none;">
+    <button class="tab-btn active" data-tab="combined">Общее</button>
+    <button class="tab-btn" data-tab="desktop">ПК</button>
+    <button class="tab-btn" data-tab="mobile">Моб</button>
+  </div>
+
+  <div class="tab-panel active" id="panel-combined"></div>
+  <div class="tab-panel" id="panel-desktop"></div>
+  <div class="tab-panel" id="panel-mobile"></div>
+  <div id="panel-site-lite" style="display:none;"></div>
+</div>
+
+<div id="tt"></div>
+
+<script>
+/* ===================== password gate ===================== */
+// Temporarily disabled by request -- gate code/markup left intact, just
+// force-unlocked on load. To re-enable, delete this line.
+sessionStorage.setItem("bw_unlocked", "1");
+const PASS_HASH = "979ca6be98edebc04c18e7b2b0ed7f321762a1e5f329d58ea4f0c57511468b32";
+async function sha256Hex(str) {
+  const buf = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(str));
+  return Array.from(new Uint8Array(buf)).map(b => b.toString(16).padStart(2, "0")).join("");
+}
+async function tryUnlock() {
+  const val = document.getElementById("gate-pass").value;
+  const hash = await sha256Hex(val);
+  if (hash === PASS_HASH) {
+    sessionStorage.setItem("bw_unlocked", "1");
+    document.getElementById("gate").classList.add("hidden");
+    document.getElementById("app").classList.add("visible");
+    initReport();
+  } else {
+    document.getElementById("gate-error").textContent = "Неверный пароль";
+  }
+}
+document.getElementById("gate-btn").addEventListener("click", tryUnlock);
+document.getElementById("gate-pass").addEventListener("keydown", e => { if (e.key === "Enter") tryUnlock(); });
+if (sessionStorage.getItem("bw_unlocked") === "1") {
+  document.getElementById("gate").classList.add("hidden");
+  document.getElementById("app").classList.add("visible");
+}
+
+/* ===================== event glossary (plain language) ===================== */
+const GLOSSARY = {
+  page_view:              { label: "Просмотр страницы",            desc: "Клиент открыл и посмотрел страницу сайта.", system: true },
+  first_visit:            { label: "Первый визит",                  desc: "Человек оказался на сайте первый раз (по этому браузеру/устройству).", system: true },
+  session_start:          { label: "Начало сессии",                 desc: "Началась новая сессия, визит на сайт.", system: true },
+  user_engagement:        { label: "Вовлечённость",                 desc: "Посетитель провёл на сайте достаточно времени и был активен, а не просто зашёл и сразу ушёл.", system: true },
+  scroll:                 { label: "Прокрутка страницы",            desc: "Посетитель прокрутил страницу вниз почти до конца (около 90%).", system: true },
+  page_load_time:         { label: "Время загрузки страницы",       desc: "Сколько миллисекунд реально грузилась страница у посетителя.", system: true },
+  form_start:             { label: "Начало заполнения формы (любой)", desc: "Клиент начал заполнять любую форму на сайте, не только регистрацию. Стандартное автоматическое событие GA4." },
+  reg_form_start:         { label: "Начало заполнения формы",       desc: "Клиент начал заполнять форму регистрации. Фиксируется двумя способами: по клику в поле формы и по внутреннему техническому сигналу сайта об открытии формы, для надёжности." },
+  bet_slip_view:          { label: "Просмотр купона ставок",        desc: "У клиента на экране появился купон для сбора ставок." },
+  cta_click:               { label: "Клик по главной кнопке",        desc: "Клиент нажал одну из ключевых кнопок сайта: «Войти», бонус или «Пополнить».", detailLabel: "Какая кнопка" },
+  reg_page_view:           { label: "Зашли на регистрацию (по URL)",  desc: "Сессии, где адрес страницы содержал /registration. На ПК считает надёжно (регистрация там открывается на отдельной странице), но НЕ считает мобильные сессии, где форма открывается поверх текущей страницы без смены адреса, поэтому на мобилке эта цифра занижена. Основной индикатор входа в регистрацию: «Начало заполнения формы»." },
+  sign_up_start:           { label: "Клик по кнопке «Регистрация»",  desc: "Клиент нажал именно кнопку «Регистрация» в шапке сайта. Не считает переходы по прямым ссылкам и рекламе (это часть, а не весь трафик на регистрацию, см. «Зашли на регистрацию»)." },
+  sign_up_method_select:   { label: "Выбор способа регистрации",     desc: "Клиент выбрал способ регистрации, например по телефону, почте или через соцсеть. Фиксируется и по клику на вкладке, и по внутреннему техническому сигналу сайта.", detailLabel: "Какой способ" },
+  sign_up_success:         { label: "Успешная регистрация",          desc: "Клиент успешно завершил регистрацию, подтверждено экраном «Регистрация завершена», а не просто кликом по кнопке. Засчитывается один раз за посещение сайта, даже если сработало несколько внутренних сигналов подтверждения.", detailLabel: "Каким способом" },
+  nav_click:               { label: "Клик по меню",                  desc: "Клик по пункту главного меню сайта.", detailLabel: "Какой пункт меню" },
+  footer_click:            { label: "Клик по ссылке в подвале",      desc: "Клик по одной из обычных ссылок в самом низу сайта.", detailLabel: "Какая ссылка" },
+  promo_click:             { label: "Клик по промо-баннеру",         desc: "Клик по одному из рекламных баннеров на главной странице.", detailLabel: "Какой баннер" },
+  search_use:              { label: "Использование поиска",          desc: "Клиент воспользовался поиском по сайту." },
+  settings_open:           { label: "Открытие настроек",             desc: "Клиент открыл настройки: смену языка или региона. Фиксируется и по клику, и по внутреннему техническому сигналу сайта." },
+  switch_to_mobile_click:  { label: "Переключение на мобильную версию", desc: "Клиент вручную переключился на мобильную версию сайта." },
+  sidebar_click:           { label: "Клик по боковой панели",        desc: "Клик по разделу боковой панели: «Статистика», «Результаты» или «История ставок».", detailLabel: "Какой раздел" },
+  scroll_depth:            { label: "Глубина прокрутки",             desc: "Посетитель долистал страницу до отметки 25% / 50% / 75% / 90%." },
+  login_submit_click:      { label: "Отправка формы входа",          desc: "Клиент нажал кнопку «Войти» в форме входа в аккаунт." },
+  forgot_password_click:   { label: "Клик «Забыли пароль»",          desc: "Клиент нажал ссылку «Забыли пароль?»." },
+  login_social_click:      { label: "Вход через соцсеть",            desc: "Клиент нажал на вход через соцсеть (Telegram / ВК / ОК / Яндекс / Mail.Ru).", detailLabel: "Какая соцсеть" },
+  app_download_click:      { label: "Клик по скачиванию приложения", desc: "Клиент нажал на ссылку скачивания мобильного приложения (iOS или Android).", detailLabel: "Какая платформа" },
+  social_footer_click:     { label: "Клик по соцсети в подвале",     desc: "Клик по иконке соцсети внизу сайта (VK / Instagram / Facebook / X / Telegram).", detailLabel: "Какая соцсеть" },
+  chat_open:               { label: "Открытие чата поддержки",       desc: "Клиент открыл окно чата поддержки. Фиксируется и по клику на кнопку, и по внутреннему техническому сигналу сайта." },
+  deposit_button_click:    { label: "Клик по кнопке «Пополнить»",    desc: "Клиент нажал кнопку пополнения счёта в шапке/меню сайта." },
+  coupon_sale_click:       { label: "Клик «Продать купон»",          desc: "Клиент нажал кнопку продажи купона ставок." },
+  bonus_activate_click:    { label: "Клик «Активировать бонус»",     desc: "Клиент нажал кнопку активации бонуса." },
+  // ---- native site events: the site pushes these into dataLayer itself
+  // (own tracking, independent of GA4) -- found digging through the JS
+  // bundles while chasing the sign_up_success under-count, confirmed both
+  // by real historical firing volume and current live code before wiring up
+  reg_submit_click:        { label: "Клик «Зарегистрироваться»",     desc: "Клиент нажал кнопку финальной отправки формы регистрации (шаг между «Начало заполнения формы» и «Успешная регистрация»)." },
+  reg_full_submit:         { label: "Отправка полной формы регистрации", desc: "Отправка регистрации через полную форму (email/имя/страна и т.д., в отличие от быстрой регистрации по телефону).", detailLabel: "Тип отправки" },
+  reg_otp_error:           { label: "Ошибка SMS-кода при регистрации", desc: "Клиент ввёл неверный код подтверждения по SMS во время регистрации по телефону." },
+  reg_abandon:             { label: "Уход из регистрации",           desc: "Клиент открыл попап подтверждения выхода из формы регистрации (собирается уйти, не закончив)." },
+  login_start:             { label: "Попытка входа",                 desc: "Клиент нажал «Войти» и отправил форму входа в аккаунт (нативное событие сайта)." },
+  login_success:           { label: "Успешный вход",                 desc: "Клиент успешно вошёл в существующий аккаунт." },
+  login_error:             { label: "Ошибка входа",                  desc: "Попытка входа в аккаунт закончилась ошибкой (неверный пароль и т.п.)." },
+  password_reset_start:    { label: "Начало восстановления пароля",  desc: "Клиент начал процесс восстановления пароля." },
+  password_reset_code_sent:{ label: "Код восстановления отправлен",  desc: "Клиенту отправлен код для восстановления пароля (SMS/email)." },
+  password_reset_submit:   { label: "Отправка нового пароля",        desc: "Клиент отправил форму с новым паролем." },
+  password_reset_error:    { label: "Ошибка восстановления пароля",  desc: "Процесс восстановления пароля закончился ошибкой." },
+  deposit_click:           { label: "Клик по пополнению (нативно)",  desc: "Клиент нажал кнопку пополнения счёта. Нативное событие сайта, знает откуда именно нажали.", detailLabel: "Где именно" },
+  deposit_abandon:         { label: "Уход из пополнения",            desc: "Клиент открыл попап подтверждения выхода из формы пополнения счёта (не завершив)." },
+  withdraw_click:          { label: "Клик по выводу средств",        desc: "Клиент нажал кнопку вывода средств.", detailLabel: "Где именно" },
+  bet_placed:               { label: "Ставка сделана",                 desc: "Клиент разместил ставку. Реальное вовлечение в продукт, а не просто визит.", detailLabel: "Экран" },
+  bet_error:                { label: "Ошибка при ставке",              desc: "Попытка сделать ставку закончилась ошибкой." },
+  promo_panel_open:        { label: "Открытие панели промокода",     desc: "Клиент открыл панель ввода промокода." },
+  // ---- second-pass native event expansion (2026-08-25): the full "_call"/
+  // "_click"/"_open"/"_change"/"_error"-suffixed native dataLayer vocabulary
+  // beyond the first pass, covering account/wallet management, promo/bonus,
+  // betting/coupon engagement, exit-intent, and registration friction
+  bet_slip_add:             { label: "Добавление в купон ставок",       desc: "Клиент добавил событие в купон ставок." },
+  bet_custom_stake:         { label: "Своя ставка (сумма)",             desc: "Клиент ввёл собственную сумму ставки." },
+  bet_one_click:            { label: "Ставка в один клик",              desc: "Клиент разместил ставку через режим «в один клик»." },
+  coupon_open:              { label: "Открытие купона",                 desc: "Клиент открыл купон ставок." },
+  coupon_save:              { label: "Сохранение купона",               desc: "Клиент сохранил купон ставок." },
+  coupon_load:              { label: "Загрузка купона",                 desc: "Клиент загрузил ранее сохранённый купон." },
+  coupon_clear:             { label: "Очистка купона",                  desc: "Клиент очистил купон ставок." },
+  bet_confirmed_popup:      { label: "Подтверждение ставки (попап)",    desc: "Появился попап подтверждения размещённой ставки." },
+  bet_cashout_open:         { label: "Открытие продажи ставки",         desc: "Клиент открыл экран продажи (кэшаута) ставки до её завершения." },
+  bet_cashout_auto:         { label: "Автопродажа ставки",              desc: "Сработала автоматическая продажа ставки." },
+  bet_cashout_full:         { label: "Полная продажа ставки",           desc: "Клиент продал ставку целиком." },
+  bet_cashout_one_click:    { label: "Продажа ставки в один клик",      desc: "Клиент продал ставку через режим «в один клик»." },
+  bet_cashout_error:        { label: "Ошибка продажи ставки",           desc: "Попытка продать ставку закончилась ошибкой." },
+  bet_odds_click:           { label: "Клик по коэффициенту",            desc: "Клиент кликнул по коэффициенту ставки." },
+  account_qr_code_open:     { label: "Открытие QR-кода аккаунта",       desc: "Клиент открыл QR-код своего аккаунта." },
+  account_add_email:        { label: "Добавление email",                desc: "Клиент добавил email к аккаунту." },
+  account_add_email_error:  { label: "Ошибка добавления email",         desc: "Попытка добавить email закончилась ошибкой." },
+  account_add_phone:        { label: "Добавление телефона",             desc: "Клиент добавил номер телефона к аккаунту." },
+  account_add_phone_error:  { label: "Ошибка добавления телефона",      desc: "Попытка добавить телефон закончилась ошибкой." },
+  account_bet_history_view: { label: "Просмотр истории ставок",         desc: "Клиент открыл историю ставок в личном кабинете." },
+  account_change_password:  { label: "Смена пароля",                    desc: "Клиент сменил пароль аккаунта." },
+  account_change_password_error: { label: "Ошибка смены пароля",        desc: "Попытка сменить пароль закончилась ошибкой." },
+  account_logout:           { label: "Выход из аккаунта",               desc: "Клиент вышел из своего аккаунта." },
+  account_personal_data_view: { label: "Просмотр личных данных",        desc: "Клиент открыл раздел личных данных." },
+  account_security_settings: { label: "Настройки безопасности",         desc: "Клиент открыл настройки безопасности аккаунта." },
+  account_transaction_history_view: { label: "Просмотр истории транзакций", desc: "Клиент открыл историю транзакций." },
+  support_type_select:      { label: "Выбор типа поддержки",            desc: "Клиент выбрал конкретный тип обращения в поддержку." },
+  wallet_add_account:       { label: "Добавление счёта в кошельке",     desc: "Клиент добавил новый платёжный счёт в разделе «Мой кошелёк»." },
+  wallet_bet_history:       { label: "История ставок в кошельке",       desc: "Клиент открыл историю ставок из раздела «Мой кошелёк»." },
+  wallet_deposit_history:   { label: "История депозитов в кошельке",    desc: "Клиент открыл историю депозитов из раздела «Мой кошелёк»." },
+  wallet_edit_account:      { label: "Редактирование счёта",            desc: "Клиент отредактировал платёжный счёт." },
+  wallet_top_up:            { label: "Пополнение через кошелёк",        desc: "Клиент нажал пополнение счёта в разделе «Мой кошелёк»." },
+  wallet_withdraw_click:    { label: "Клик по выводу в кошельке",       desc: "Клиент нажал вывод средств в разделе «Мой кошелёк»." },
+  payment_method_add:       { label: "Добавление способа оплаты",       desc: "Клиент добавил новый способ оплаты." },
+  payment_method_remove:    { label: "Удаление способа оплаты",         desc: "Клиент удалил способ оплаты." },
+  payment_method_manage:    { label: "Управление способом оплаты",      desc: "Клиент открыл управление способом оплаты." },
+  promo_cashback_open:      { label: "Открытие кэшбэка",                desc: "Клиент открыл раздел кэшбэка." },
+  promo_referral_open:      { label: "Открытие реферальной программы",  desc: "Клиент открыл реферальную программу." },
+  promo_referral_join:      { label: "Присоединение к рефералке",       desc: "Клиент присоединился к реферальной программе." },
+  promo_code_activate:      { label: "Активация промокода",             desc: "Клиент отправил промокод на активацию." },
+  vip_cashback_open:        { label: "Открытие VIP-кэшбэка",            desc: "Клиент открыл раздел VIP-кэшбэка казино." },
+  promo_bonus_check:        { label: "Проверка бонуса",                 desc: "Клиент проверил условия/статус бонуса." },
+  exit_intent_leave:        { label: "Уход со страницы (попап)",        desc: "Клиент подтвердил уход в попапе предупреждения о выходе." },
+  exit_intent_stay:         { label: "Остался на странице (попап)",     desc: "Клиент решил остаться в попапе предупреждения о выходе." },
+  registration_error_general: { label: "Общая ошибка регистрации",      desc: "Регистрация закончилась ошибкой (не связанной с SMS-кодом)." },
+};
+const KNOWN_EVENT_ORDER = Object.keys(GLOSSARY);
+
+// Business priority, not firing volume -- page_view/session_start always win
+// a count-sort and bury the events that actually matter (a registration is
+// worth more than a million page views). Order: money/conversion outcomes
+// first, then the funnel steps leading to them, then friction/drop-off
+// signals (diagnostic value), then account/login funnel, then secondary
+// engagement clicks, then passive/technical/system events last.
+const EVENT_PRIORITY_ORDER = [
+  // core conversion outcomes
+  "sign_up_success", "bet_placed", "deposit_click", "withdraw_click",
+  // registration funnel steps (leading indicators)
+  "reg_form_start", "sign_up_method_select", "reg_submit_click", "reg_full_submit",
+  "sign_up_start", "reg_page_view",
+  // deeper product engagement (betting/coupon depth -- real usage, not just visits)
+  "bet_slip_add", "bet_one_click", "bet_custom_stake", "bet_confirmed_popup", "bet_odds_click",
+  "coupon_open", "coupon_save", "coupon_load", "coupon_clear",
+  "bet_cashout_open", "bet_cashout_auto", "bet_cashout_full", "bet_cashout_one_click",
+  "wallet_top_up", "wallet_withdraw_click",
+  // friction / drop-off signals
+  "reg_abandon", "reg_otp_error", "registration_error_general", "deposit_abandon", "bet_error",
+  "bet_cashout_error", "login_error", "password_reset_error", "exit_intent_leave", "exit_intent_stay",
+  // login / account funnel
+  "login_start", "login_success", "password_reset_start", "password_reset_code_sent",
+  "password_reset_submit", "forgot_password_click",
+  // promo / bonus engagement
+  "promo_code_activate", "promo_cashback_open", "vip_cashback_open", "promo_referral_join",
+  "promo_referral_open", "promo_bonus_check",
+  // secondary engagement clicks
+  "cta_click", "deposit_button_click", "promo_panel_open", "bonus_activate_click", "coupon_sale_click",
+  "login_social_click", "app_download_click", "bet_slip_view", "chat_open", "support_type_select", "search_use",
+  "social_footer_click", "promo_click", "nav_click", "footer_click", "sidebar_click",
+  "settings_open", "switch_to_mobile_click",
+  // account management (post-login depth)
+  "account_bet_history_view", "account_transaction_history_view", "wallet_bet_history", "wallet_deposit_history",
+  "wallet_add_account", "wallet_edit_account", "payment_method_add", "payment_method_manage", "payment_method_remove",
+  "account_add_email", "account_add_phone", "account_change_password", "account_security_settings",
+  "account_personal_data_view", "account_qr_code_open", "account_add_email_error", "account_add_phone_error",
+  "account_change_password_error", "account_logout",
+  // passive / technical / system events
+  "scroll_depth", "scroll", "page_load_time", "user_engagement", "form_start",
+  "session_start", "first_visit", "page_view",
+];
+const EVENT_PRIORITY_INDEX = new Map(EVENT_PRIORITY_ORDER.map((name, i) => [name, i]));
+const BUSINESS_EVENTS = KNOWN_EVENT_ORDER.filter(n => !GLOSSARY[n].system);
+
+const KPI_TIPS = {
+  sessions: "Сколько раз в сумме заходили на сайт за период (один человек может зайти несколько раз, это будет несколько сессий).",
+  totalUsers: "Сколько разных людей (устройств/браузеров) заходило на сайт за период.",
+  screenPageViews: "Сколько страниц в сумме было открыто всеми посетителями.",
+  averageSessionDuration: "Сколько в среднем длится визит СРЕДИ ТЕХ, КТО реально был вовлечён (не отказ). Если считать по всем визитам подряд, отказы (70%+ на этом сайте) размывают цифру почти до нуля и она перестаёт что-либо показывать.",
+  bounceRate: "Доля визитов, где человек не проявил активность: был на сайте меньше 10 секунд, посмотрел только 1 страницу и не сделал целевое действие.",
+  engagementRate: "Обратный показатель отказам: доля визитов, где человек реально был активен, провёл больше 10 секунд, посмотрел 2+ страницы или сделал целевое действие.",
+  avgLoadTime: "Среднее время, за которое страница полностью загружалась у посетителя.",
+  signupRate: "Какая доля уникальных посетителей дошла до заполнения формы регистрации (кликнула хотя бы в одно поле). Считается по людям, а не по визитам: один человек может зайти несколько раз, это не должно занижать цифру.",
+  completionRate: "Из тех, кто начал заполнять форму регистрации, какая доля дошла до конца и успешно завершила регистрацию.",
+  overallConversionRate: "Главная цифра воронки: какая доля ВСЕХ уникальных посетителей сайта (не только тех, кто начал форму) закончила успешной регистрацией. Считается по людям, а не по визитам.",
+};
+
+const CHANNEL_LABELS = {
+  "Direct": "Прямые заходы (адрес сайта ввели сами / из закладок)",
+  "Referral": "Переходы по ссылкам с других сайтов",
+  "Organic Search": "Из поисковиков (без рекламы)",
+  "Paid Search": "Платная реклама в поиске",
+  "Paid Social": "Платная реклама в соцсетях",
+  "Organic Social": "Бесплатные переходы из соцсетей",
+  "Unassigned": "Не определено",
+  "Email": "Из email-рассылок",
+  "Affiliates": "Партнёрские программы",
+  "Display": "Медийная (баннерная) реклама",
+  "Cross-network": "Смешанные рекламные сети",
+};
+function channelLabel(name) { return CHANNEL_LABELS[name] || name; }
+const CHANNEL_TIPS = {
+  "Unassigned": "GA4 не смог понять, откуда пришёл человек: реферер потерялся при переходе (например, через редиректы платёжных/партнёрских сервисов) или объёма данных ещё мало для точной классификации.",
+  "Direct": "Сюда попадает и реальный прямой заход, и переходы, где браузер не передал источник (например, из некоторых мобильных приложений).",
+};
+
+/* ===================== tooltip helper ===================== */
+const ttEl = document.getElementById("tt");
+function showTip(x, y, title, body) {
+  ttEl.innerHTML = "";
+  const t = document.createElement("div"); t.className = "tt-title"; t.textContent = title;
+  ttEl.appendChild(t);
+  if (body) { const b = document.createElement("div"); b.textContent = body; ttEl.appendChild(b); }
+  ttEl.style.left = Math.min(x + 14, window.innerWidth - 280) + "px";
+  ttEl.style.top = (y + 14) + "px";
+  ttEl.classList.add("show");
+}
+function hideTip() { ttEl.classList.remove("show"); }
+function bindTip(el, title, body) {
+  el.addEventListener("pointermove", e => showTip(e.clientX, e.clientY, title, body));
+  el.addEventListener("pointerleave", hideTip);
+  el.addEventListener("focus", e => { const r = el.getBoundingClientRect(); showTip(r.left, r.bottom, title, body); });
+  el.addEventListener("blur", hideTip);
+}
+
+/* ===================== formatting ===================== */
+const fmtInt = n => new Intl.NumberFormat("ru-RU").format(Math.round(n));
+// Compact axis/point-label form (273436 -> "273K") -- full fmtInt numbers
+// ("273 436") crowd two adjacent point labels on a chart into each other.
+const fmtCompact = n => {
+  const v = Math.round(n);
+  if (Math.abs(v) >= 1000000) return (v/1000000).toFixed(v % 1000000 === 0 ? 0 : 1).replace(".", ",") + "M";
+  if (Math.abs(v) >= 1000) return (v/1000).toFixed(v % 1000 === 0 ? 0 : 1).replace(".", ",") + "K";
+  return String(v);
+};
+// form_start (GA4 auto-detected, can fire more than once per session) isn't a
+// strict 1:1 step against sign_up_start, so the ratio can mathematically exceed
+// 100% — clamp the display since a conversion rate can't exceed 100% by definition.
+const fmtPct = n => (Math.round(Math.min(n, 100) * 10) / 10).toString().replace(".", ",") + "%";
+
+// The site's registration-method labels are captured in whatever language the
+// visitor is browsing in ("By phone", "Por telefono", "از طریق تلفن", ...) —
+// classify by keyword (checking specific social network names first, since
+// e.g. "Mail.Ru" contains "mail" but is a social login, not the email method)
+// and re-aggregate counts into one Russian bucket per real method.
+function normalizeMethodDetail(rawDetail) {
+  const SOCIAL_NETWORK_NAMES = ["telegram", "vkontakte", " vk", "vk.", "одноклассник", "ok.ru", "yandex", "яндекс", "mail.ru", "whatsapp", "viber"];
+  function classify(raw) {
+    const s = (raw || "").toLowerCase();
+    if (SOCIAL_NETWORK_NAMES.some(n => s.includes(n))) return "Соцсети и мессенджеры";
+    if (s === "fast" || s.includes("clic") || s.includes("click") || s.includes("1 клик") || s.includes("одним кликом")) return "В 1 клик";
+    if (s === "phone" || s.includes("phone") || s.includes("tel") || s.includes("телефон") || s.includes("تلفن")) return "По телефону";
+    if (s === "email" || s.includes("mail") || s.includes("почт")) return "По E-mail";
+    if (s.includes("social") || s.includes("sociales") || s.includes("mensaj") || s.includes("соцсет") || s.includes("messeng")) return "Соцсети и мессенджеры";
+    // "unknown" is a real value the site itself sends (not a tracking gap) --
+    // same meaning as GA's own "(not set)". Anything else unrecognized also
+    // folds in here rather than a separate "Другое" bucket -- if we can't
+    // name the method, say so plainly instead of a vague catch-all label.
+    return "Не определено";
+  }
+  const buckets = {};
+  rawDetail.forEach(d => {
+    const key = classify(d.value);
+    buckets[key] = (buckets[key] || 0) + (d.count || 0);
+  });
+  return Object.entries(buckets)
+    .map(([value, count]) => ({ value, count }))
+    .sort((a, b) => b.count - a.count);
+}
+
+// app_download_click's "platform" shows up in whatever language the visitor's
+// site is in ("Android", "안드로이드", "iOS", "آيفون", ...) — collapse to two
+// canonical buckets since there are only ever two real mobile platforms.
+function normalizePlatformDetail(rawDetail) {
+  function classify(raw) {
+    const s = (raw || "").toLowerCase();
+    if (s === "(not set)" || s === "(none)" || !s) return "Не определено";
+    if (s.includes("android") || s.includes("안드로이드") || s.includes("андроид")) return "Android";
+    if (s.includes("ios") || s.includes("iphone") || s.includes("айфон") || s.includes("آيفون")) return "iOS";
+    return "Другое";
+  }
+  const buckets = {};
+  rawDetail.forEach(d => {
+    const key = classify(d.value);
+    buckets[key] = (buckets[key] || 0) + (d.count || 0);
+  });
+  return Object.entries(buckets)
+    .map(([value, count]) => ({ value, count }))
+    .sort((a, b) => b.count - a.count);
+}
+
+// social_footer_click/login_social_click values are branded redirect links
+// (e.g. http://smbwtg.xyz/ — "smbw" + 2-letter platform code + .xyz), not
+// readable names. Decode by the 2-letter code, falling back to matching the
+// real platform domain directly (e.g. vk.com links that skip the redirector).
+function normalizeSocialDetail(rawDetail) {
+  const CODE_TO_NAME = { tg: "Telegram", vk: "VK", ig: "Instagram", fb: "Facebook", tw: "X (Twitter)", ok: "Одноклассники", wa: "WhatsApp", yt: "YouTube" };
+  function classify(raw) {
+    const s = (raw || "").toLowerCase();
+    if (s === "(not set)" || s === "(none)" || !s) return "Не определено";
+    const shortlinkMatch = s.match(/smbw([a-z]{2})\.xyz/);
+    if (shortlinkMatch && CODE_TO_NAME[shortlinkMatch[1]]) return CODE_TO_NAME[shortlinkMatch[1]];
+    if (s.includes("vk.com") || s.includes("vkontakte")) return "VK";
+    if (s.includes("t.me") || s.includes("telegram")) return "Telegram";
+    if (s.includes("instagram.com")) return "Instagram";
+    if (s.includes("facebook.com")) return "Facebook";
+    if (s.includes("twitter.com") || s.includes("x.com")) return "X (Twitter)";
+    if (s.includes("ok.ru") || s.includes("одноклассник")) return "Одноклассники";
+    if (s.includes("whatsapp")) return "WhatsApp";
+    if (s.includes("mail.ru")) return "Mail.Ru";
+    if (s.includes("yandex") || s.includes("яндекс")) return "Яндекс";
+    return "Другое";
+  }
+  const buckets = {};
+  rawDetail.forEach(d => {
+    const key = classify(d.value);
+    buckets[key] = (buckets[key] || 0) + (d.count || 0);
+  });
+  return Object.entries(buckets)
+    .map(([value, count]) => ({ value, count }))
+    .sort((a, b) => b.count - a.count);
+}
+const fmtDur = sec => {
+  sec = Math.round(sec);
+  const m = Math.floor(sec / 60), s = sec % 60;
+  return m > 0 ? `${m} мин ${s} с` : `${s} с`;
+};
+const fmtDate = iso => new Date(iso + "T00:00:00").toLocaleDateString("ru-RU", { day: "2-digit", month: "short" });
+const PIE_COLORS = ["--series-1","--series-2","--series-3","--series-4","--series-5","--series-6","--series-7"];
+function cssVar(name) { return getComputedStyle(document.documentElement).getPropertyValue(name).trim(); }
+
+// Counts a number up from 0 to target — the "wow, it's alive" first-load moment.
+// Respects prefers-reduced-motion by jumping straight to the final value.
+const REDUCE_MOTION = window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+function animateCount(el, target, opts) {
+  opts = opts || {};
+  const fmt = opts.format || fmtInt;
+  if (REDUCE_MOTION || target === 0) { el.textContent = fmt(target); return; }
+  const duration = opts.duration || 900;
+  const delay = opts.delay || 0;
+  const stepMs = 16;
+  const ease = t => 1 - Math.pow(1 - t, 3);
+  // setTimeout, not requestAnimationFrame — rAF only fires while the tab is
+  // actively compositing frames; setTimeout runs regardless, so the count-up
+  // can't silently stall on a backgrounded/non-visible tab.
+  setTimeout(() => {
+    const start = performance.now();
+    function tick() {
+      const t = Math.min((performance.now() - start) / duration, 1);
+      el.textContent = fmt(target * ease(t));
+      if (t < 1) setTimeout(tick, stepMs); else el.textContent = fmt(target);
+    }
+    tick();
+  }, delay);
+}
+function topNPlusOther(rows, n, valueKey) {
+  const sorted = (rows||[]).slice().sort((a,b) => b[valueKey]-a[valueKey]);
+  const top = sorted.slice(0, n);
+  const rest = sorted.slice(n);
+  const restSum = rest.reduce((s,r) => s+r[valueKey], 0);
+  const out = top.map(r => ({ name: r.name, value: r[valueKey] }));
+  if (restSum > 0) out.push({ name: `Остальные (${rest.length})`, value: restSum, isOther: true });
+  return out;
+}
+
+/* ===================== section title helper ===================== */
+function sectionTitle(parent, text, hint) {
+  const t = document.createElement("div"); t.className = "section-title";
+  const span = document.createElement("span"); span.textContent = text;
+  t.appendChild(span);
+  if (hint) { const h = document.createElement("span"); h.className = "hint"; h.textContent = hint; t.appendChild(h); }
+  parent.appendChild(t);
+  return t;
+}
+
+// A closed-by-default <details> section — progressive disclosure so the top of
+// the report stays to 5-9 headline items (dashboard design: "one decision per
+// screen", detail is a click away, not competing for attention).
+function collapsibleSection(parent, title, hint) {
+  const wrap = document.createElement("div"); wrap.className = "section-collapse";
+  const header = document.createElement("button"); header.className = "section-collapse-header"; header.type = "button";
+  header.setAttribute("aria-expanded", "false");
+  const chev = document.createElement("span"); chev.className = "chevron-ico"; chev.textContent = "▸";
+  const t = document.createElement("span"); t.textContent = title;
+  header.append(chev, t);
+  if (hint) { const h = document.createElement("span"); h.className = "tech-hint"; h.textContent = hint; header.appendChild(h); }
+  const animate = document.createElement("div"); animate.className = "section-collapse-animate";
+  const body = document.createElement("div"); body.className = "section-collapse-body";
+  animate.appendChild(body);
+  header.addEventListener("click", () => {
+    const open = wrap.classList.toggle("open");
+    header.setAttribute("aria-expanded", String(open));
+  });
+  wrap.append(header, animate);
+  parent.appendChild(wrap);
+  return body;
+}
+
+/* ===================== chart builders ===================== */
+function buildDonut(entries) {
+  const size = 200, r = 80, cx = size/2, cy = size/2, stroke = 28;
+  const total = entries.reduce((s,e) => s+e.value, 0) || 1;
+  let angle = -90;
+  const svgNS = "http://www.w3.org/2000/svg";
+  const svg = document.createElementNS(svgNS, "svg");
+  svg.setAttribute("viewBox", `0 0 ${size} ${size}`);
+  svg.setAttribute("width", "100%");
+  svg.style.maxWidth = "180px";
+  svg.style.height = "auto";
+
+  entries.forEach((e) => {
+    const frac = e.value / total;
+    const a0 = angle, a1 = angle + frac*360;
+    angle = a1;
+    const large = (a1 - a0) > 180 ? 1 : 0;
+    const toXY = a => [cx + r*Math.cos(a*Math.PI/180), cy + r*Math.sin(a*Math.PI/180)];
+    const [x0,y0] = toXY(a0), [x1,y1] = toXY(a1);
+    const path = document.createElementNS(svgNS, "path");
+    const d = frac >= 0.9995
+      ? `M ${cx-r} ${cy} A ${r} ${r} 0 1 1 ${cx+r-0.01} ${cy} A ${r} ${r} 0 1 1 ${cx-r} ${cy}`
+      : `M ${x0} ${y0} A ${r} ${r} 0 ${large} 1 ${x1} ${y1}`;
+    path.setAttribute("d", d);
+    path.setAttribute("fill", "none");
+    path.setAttribute("stroke", e.color);
+    path.setAttribute("stroke-width", stroke);
+    path.style.cursor = "default";
+    path.addEventListener("pointermove", ev => showTip(ev.clientX, ev.clientY, e.label, `${fmtInt(e.value)} (${(frac*100).toFixed(1)}%)`));
+    path.addEventListener("pointerleave", hideTip);
+    svg.appendChild(path);
+  });
+
+  const wrap = document.createElement("div");
+  wrap.style.display = "flex"; wrap.style.flexDirection = "column"; wrap.style.alignItems = "center";
+  wrap.appendChild(svg);
+  return wrap;
+}
+
+function buildLegend(entries) {
+  const wrap = document.createElement("div"); wrap.className = "legend";
+  entries.forEach(e => {
+    const row = document.createElement("div"); row.className = "legend-item"; row.tabIndex = 0;
+    const sw = document.createElement("span"); sw.className = "legend-swatch"; sw.style.background = e.color;
+    const lab = document.createElement("span"); lab.className = "legend-label"; lab.textContent = e.label;
+    const val = document.createElement("span"); val.className = "legend-value"; val.textContent = fmtInt(e.value);
+    row.append(sw, lab, val);
+    const glossaryDesc = GLOSSARY[e.name] ? GLOSSARY[e.name].desc : (e.tip || "");
+    bindTip(row, e.label, glossaryDesc);
+    wrap.appendChild(row);
+  });
+  return wrap;
+}
+
+function donutBlock(title, rawRows, valueKey) {
+  const wrap = document.createElement("div");
+  const t = document.createElement("div"); t.className = "subsection-title"; t.textContent = title;
+  wrap.appendChild(t);
+  const capped = topNPlusOther(rawRows, 7, valueKey);
+  const entries = capped.map((e,i) => ({
+    name: e.name, label: e.name, value: e.value,
+    color: cssVar(e.isOther ? "--series-other" : PIE_COLORS[i]),
+  }));
+  const row = document.createElement("div"); row.className = "chart-row";
+  const left = document.createElement("div"); left.appendChild(buildDonut(entries));
+  const right = document.createElement("div"); right.appendChild(buildLegend(entries));
+  row.append(left, right);
+  wrap.appendChild(row);
+  return wrap;
+}
+
+// Real visual funnel — tapering trapezoid segments, single sequential hue (dataviz: ordinal ramp for stages/tiers)
+// Colorful layered funnel (blue -> deep purple), value printed inside each
+// segment, label as a matching solid chip on the left — bright and legible,
+// closer to how commercial BI funnel charts read at a glance.
+const FUNNEL_STAGE_COLORS = [
+  { base: "#2a78d6", top: "#5a9eef" }, // blue
+  { base: "#5a5be0", top: "#8686f0" }, // blue-violet
+  { base: "#7d4fd6", top: "#a67cec" }, // violet
+  { base: "#5b3aa7", top: "#8163c9" }, // deep purple
+];
+
+// Continuous layered funnel — one shape, not N separate cards, matching the
+// reference: color-chip labels on the left, an unbroken "stacked discs" cone
+// with the value inside each band, on the right.
+function buildVisualFunnel(steps) {
+  const n = steps.length;
+  const svgNS = "http://www.w3.org/2000/svg";
+  const trackW = 260, rowH = 36, totalH = n * rowH, capRy = 5;
+
+  const outer = document.createElement("div"); outer.className = "vfunnel2";
+  const labels = document.createElement("div"); labels.className = "vfunnel2-labels";
+  labels.style.gridTemplateRows = `repeat(${n}, 1fr)`;
+  const graphic = document.createElement("div"); graphic.className = "vfunnel2-graphic";
+
+  const svg = document.createElementNS(svgNS, "svg");
+  svg.setAttribute("viewBox", `0 0 ${trackW} ${totalH}`);
+  svg.classList.add("vfunnel-svg");
+  svg.setAttribute("preserveAspectRatio", "none");
+  const defs = document.createElementNS(svgNS, "defs");
+  svg.appendChild(defs);
+
+  // Fixed geometric taper, not scaled to the real values: real funnel drop-offs
+  // often span 3-4 orders of magnitude (24000 -> 1), and a value-proportional
+  // width just collapses every stage after the first into an identical sliver.
+  // The reference chart does the same — the cone is a consistent visual motif,
+  // the real numbers live in the text and in the conversion pills.
+  const topRatio = 0.60, shrink = 0.76;
+  const boundaryFrac = i => topRatio * Math.pow(shrink, i);
+  const widthFor = i => boundaryFrac(i) * trackW;
+
+  steps.forEach((s, i) => {
+    const colors = FUNNEL_STAGE_COLORS[Math.min(i, FUNNEL_STAGE_COLORS.length-1)];
+    const chip = document.createElement("div"); chip.className = "vfunnel-label-chip";
+    chip.style.background = colors.base;
+    chip.textContent = s.label;
+    labels.appendChild(chip);
+
+    const y0 = i * rowH, y1 = y0 + rowH;
+    const topW = widthFor(i);
+    const botW = widthFor(i + 1);
+    const cx = trackW / 2;
+    const tl = cx - topW/2, tr = cx + topW/2, bl = cx - botW/2, br = cx + botW/2;
+
+    const gradId = "vfg" + i + Math.random().toString(36).slice(2,7);
+    const grad = document.createElementNS(svgNS, "linearGradient");
+    grad.setAttribute("id", gradId); grad.setAttribute("x1", "0"); grad.setAttribute("y1", "0"); grad.setAttribute("x2", "0"); grad.setAttribute("y2", "1");
+    const stop1 = document.createElementNS(svgNS, "stop"); stop1.setAttribute("offset", "0%"); stop1.setAttribute("stop-color", colors.top);
+    const stop2 = document.createElementNS(svgNS, "stop"); stop2.setAttribute("offset", "100%"); stop2.setAttribute("stop-color", colors.base);
+    grad.append(stop1, stop2); defs.appendChild(grad);
+
+    const poly = document.createElementNS(svgNS, "polygon");
+    poly.classList.add("vfunnel-poly");
+    poly.style.transformBox = "fill-box"; poly.style.transformOrigin = "50% 0%";
+    poly.style.transitionDelay = (i * 200) + "ms";
+    poly.setAttribute("points", `${tl},${y0} ${tr},${y0} ${br},${y1} ${bl},${y1}`);
+    poly.setAttribute("fill", `url(#${gradId})`);
+    svg.appendChild(poly);
+    setTimeout(() => poly.classList.add("animate-in"), 20);
+
+    // rim ellipse at the top of every band — the "stacked discs" cue from the reference
+    const cap = document.createElementNS(svgNS, "ellipse");
+    cap.classList.add("vfunnel-cap");
+    cap.style.transitionDelay = (i * 200 + 300) + "ms";
+    cap.setAttribute("cx", cx); cap.setAttribute("cy", y0); cap.setAttribute("rx", topW/2); cap.setAttribute("ry", capRy);
+    cap.setAttribute("fill", colors.top);
+    svg.appendChild(cap);
+    setTimeout(() => cap.classList.add("animate-in"), 20);
+
+    if (i === n - 1) {
+      const bottomCap = document.createElementNS(svgNS, "ellipse");
+      bottomCap.classList.add("vfunnel-cap");
+      bottomCap.style.transitionDelay = (i * 200 + 320) + "ms";
+      bottomCap.setAttribute("cx", cx); bottomCap.setAttribute("cy", y1); bottomCap.setAttribute("rx", botW/2); bottomCap.setAttribute("ry", capRy);
+      bottomCap.setAttribute("fill", colors.base);
+      svg.appendChild(bottomCap);
+      setTimeout(() => bottomCap.classList.add("animate-in"), 20);
+    }
+
+    const valueText = document.createElementNS(svgNS, "text");
+    valueText.classList.add("vfunnel-value-text");
+    valueText.style.transitionDelay = (i * 200 + 360) + "ms";
+    valueText.setAttribute("x", cx); valueText.setAttribute("y", (y0 + y1) / 2 + 2);
+    valueText.textContent = "0";
+    svg.appendChild(valueText);
+    animateCount(valueText, s.value, { delay: i * 200 + 220 });
+    setTimeout(() => valueText.classList.add("animate-in"), 20);
+
+    const hit = document.createElementNS(svgNS, "rect");
+    hit.setAttribute("x", 0); hit.setAttribute("y", y0); hit.setAttribute("width", trackW); hit.setAttribute("height", rowH);
+    hit.setAttribute("fill", "transparent");
+    const desc = GLOSSARY[s.name] ? GLOSSARY[s.name].desc : (s.desc || "");
+    const crText = (i > 0 && steps[i-1].value > 0) ? fmtPct(s.value / steps[i-1].value * 100) : "";
+    const tipBody = (desc ? desc + " " : "") + (crText ? `Конверсия от предыдущего шага: ${crText}.` : "");
+    bindTip(hit, s.label, tipBody);
+    svg.appendChild(hit);
+
+    if (i > 0 && steps[i-1].value > 0) {
+      const pill = document.createElement("div"); pill.className = "vfunnel-pill";
+      const cr = fmtPct(s.value / steps[i-1].value * 100);
+      pill.innerHTML = `<span class="arrow">&#8595;</span><span>${cr}</span>`;
+      pill.style.top = (y0 / totalH * 100) + "%";
+      pill.style.transitionDelay = (i * 200 + 500) + "ms";
+      graphic.appendChild(pill);
+      setTimeout(() => pill.classList.add("animate-in"), 20);
+    }
+  });
+
+  graphic.appendChild(svg);
+  outer.append(labels, graphic);
+  return outer;
+}
+
+// Ranked horizontal bar list — single hue, magnitude comparison (dataviz: sequential = safe default for "compare magnitude")
+// entries: [{label, value, tip}], optional entries[i].subEntries = [{label,value}] for expand-in-place
+function buildRankedBars(entries, opts) {
+  opts = opts || {};
+  // sharedMax lets a nested/expanded sub-list stay on the SAME scale as its parent
+  // (a sub-bar must never look bigger than the #1 bar just because it's alone in a small list)
+  const localMax = entries.reduce((m,e) => Math.max(m, e.value), 0) || 1;
+  const max = opts.sharedMax || localMax;
+  const wrap = document.createElement("div"); wrap.className = "bar-list";
+  entries.forEach(e => {
+    const hasSub = e.subEntries && e.subEntries.length;
+    const row = document.createElement("div"); row.className = "bar-row" + (opts.compact ? " compact" : "") + (hasSub ? " expandable" : "");
+    const label = document.createElement("div"); label.className = "bar-row-label"; label.textContent = e.label;
+    const track = document.createElement("div"); track.className = "bar-track"; track.tabIndex = 0;
+    const fill = document.createElement("div"); fill.className = "bar-fill";
+    const pct = Math.max((e.value / max) * 100, e.value > 0 ? 2 : 0);
+    fill.style.setProperty("--target-w", pct + "%");
+    track.appendChild(fill);
+    setTimeout(() => fill.classList.add("animate-in"), 20);
+    const count = document.createElement("div"); count.className = "bar-count"; count.textContent = fmtInt(e.value);
+    row.append(label, track, count);
+    bindTip(track, e.label, e.tip || `${fmtInt(e.value)} сессий`);
+    wrap.appendChild(row);
+
+    if (hasSub) {
+      const sub = document.createElement("div"); sub.className = "bar-sub-list";
+      const subInner = document.createElement("div");
+      subInner.appendChild(buildRankedBars(e.subEntries, { compact: true, sharedMax: max }));
+      sub.appendChild(subInner);
+      wrap.appendChild(sub);
+      label.addEventListener("click", () => sub.classList.toggle("open"));
+    }
+  });
+  return wrap;
+}
+
+// "Nice" round axis step (1/2/5 x10^n) so gridline labels read as 100K/
+// 150K/200K instead of arbitrary fractions of the raw data max.
+function niceAxisStep(max, targetTicks) {
+  if (max <= 0) return 1;
+  const raw = max / targetTicks;
+  const mag = Math.pow(10, Math.floor(Math.log10(raw)));
+  const norm = raw / mag;
+  const step = norm < 1.5 ? 1 : norm < 3 ? 2 : norm < 7 ? 5 : 10;
+  return step * mag;
+}
+
+// Simple line/area chart for a daily trend — sequential single hue (dataviz: "trend over time -> line")
+function buildTrendChart(points, key, label, colorVar) {
+  colorVar = colorVar || "--brand-a";
+  const wrap = document.createElement("div"); wrap.className = "trend-wrap";
+  if (points.length === 1) {
+    // A line needs 2+ points to connect -- but a single point isn't
+    // "missing data" when it's because the user deliberately picked one
+    // specific day in the calendar (other days DO exist, just filtered
+    // out). Show that one real number as a hero stat instead of an
+    // apologetic "не хватает данных" message that doesn't fit that case.
+    const hero = document.createElement("div");
+    hero.style.cssText = "display:flex;flex-direction:column;align-items:center;justify-content:center;gap:8px;padding:36px 0;";
+    const val = document.createElement("div");
+    val.style.cssText = `font-size:42px;font-weight:700;line-height:1;color:${cssVar(colorVar)};`;
+    val.textContent = fmtInt(points[0][key]);
+    const sub = document.createElement("div");
+    sub.style.cssText = "font-size:13px;color:var(--text-secondary);";
+    sub.textContent = `${label} · ${fmtDate(points[0].date)}`;
+    hero.append(val, sub);
+    wrap.appendChild(hero);
+    return wrap;
+  }
+  if (points.length === 0) {
+    const note = document.createElement("div"); note.className = "note-banner small";
+    note.innerHTML = `<b>Нет данных за выбранный период.</b> Попробуйте выбрать другой диапазон дат.`;
+    wrap.appendChild(note);
+    return wrap;
+  }
+  const W = 640, H = 190, padL = 46, padR = 20, padT = 24, padB = 24;
+  const rawMax = Math.max(...points.map(p => p[key]), 1);
+  const axisStep = niceAxisStep(rawMax, 4);
+  const max = Math.ceil(rawMax / axisStep) * axisStep;
+  const xStep = (W - padL - padR) / (points.length - 1);
+  const yFor = v => padT + (H - padT - padB) * (1 - v / max);
+  const xFor = i => padL + i * xStep;
+
+  const svgNS = "http://www.w3.org/2000/svg";
+  const svg = document.createElementNS(svgNS, "svg");
+  svg.setAttribute("viewBox", `0 0 ${W} ${H}`);
+  svg.classList.add("trend-svg");
+
+  // Left-hand measurement scale: gridlines at "nice" round steps, with a
+  // compact label at each one (100K/150K/...) instead of just a bare 0/max
+  // pair -- lets the reader judge the real magnitude, not only the shape.
+  for (let v = 0; v <= max + 0.001; v += axisStep) {
+    const y = yFor(v);
+    const line = document.createElementNS(svgNS, "line");
+    line.setAttribute("x1", padL); line.setAttribute("x2", W - padR);
+    line.setAttribute("y1", y); line.setAttribute("y2", y);
+    line.setAttribute("stroke", cssVar("--grid")); line.setAttribute("stroke-width", "1");
+    svg.appendChild(line);
+    const axisLabel = document.createElementNS(svgNS, "text");
+    axisLabel.setAttribute("x", padL - 8); axisLabel.setAttribute("y", y + 3);
+    axisLabel.setAttribute("text-anchor", "end");
+    axisLabel.setAttribute("class", "trend-axis-label");
+    axisLabel.textContent = fmtCompact(v);
+    svg.appendChild(axisLabel);
+  }
+
+  const gradId = "trendArea" + Math.random().toString(36).slice(2,7);
+  const defs = document.createElementNS(svgNS, "defs");
+  const grad = document.createElementNS(svgNS, "linearGradient");
+  grad.setAttribute("id", gradId); grad.setAttribute("x1", "0"); grad.setAttribute("y1", "0"); grad.setAttribute("x2", "0"); grad.setAttribute("y2", "1");
+  const gs1 = document.createElementNS(svgNS, "stop"); gs1.setAttribute("offset", "0%"); gs1.setAttribute("stop-color", cssVar(colorVar)); gs1.setAttribute("stop-opacity", "0.32");
+  const gs2 = document.createElementNS(svgNS, "stop"); gs2.setAttribute("offset", "100%"); gs2.setAttribute("stop-color", cssVar(colorVar)); gs2.setAttribute("stop-opacity", "0");
+  grad.append(gs1, gs2); defs.appendChild(grad); svg.appendChild(defs);
+
+  // Catmull-Rom -> cubic-bezier smoothing so the line reads as a smooth curve
+  // instead of straight jagged segments once there are 3+ days of data.
+  const coords = points.map((p, i) => [xFor(i), yFor(p[key])]);
+  const smoothPath = pts => {
+    if (pts.length < 3) return "M " + pts.map(c => c.join(",")).join(" L ");
+    let d = `M ${pts[0][0]},${pts[0][1]}`;
+    for (let i = 0; i < pts.length - 1; i++) {
+      const p0 = pts[i === 0 ? 0 : i - 1], p1 = pts[i], p2 = pts[i + 1], p3 = pts[i + 2 < pts.length ? i + 2 : i + 1];
+      const c1x = p1[0] + (p2[0] - p0[0]) / 6, c1y = p1[1] + (p2[1] - p0[1]) / 6;
+      const c2x = p2[0] - (p3[0] - p1[0]) / 6, c2y = p2[1] - (p3[1] - p1[1]) / 6;
+      d += ` C ${c1x},${c1y} ${c2x},${c2y} ${p2[0]},${p2[1]}`;
+    }
+    return d;
+  };
+  const smoothD = smoothPath(coords);
+  const areaPts = points.map((p,i) => `${xFor(i)},${yFor(p[key])}`).join(" L ");
+  const area = document.createElementNS(svgNS, "path");
+  area.setAttribute("d", `${smoothD} L ${xFor(points.length-1)},${yFor(0)} L ${xFor(0)},${yFor(0)} Z`);
+  area.setAttribute("fill", `url(#${gradId})`);
+  area.style.opacity = "0"; area.style.transition = "opacity .6s ease .4s";
+  svg.appendChild(area);
+  setTimeout(() => { area.style.opacity = "1"; }, 20);
+
+  const line = document.createElementNS(svgNS, "path");
+  line.setAttribute("d", smoothD);
+  line.setAttribute("fill", "none");
+  line.setAttribute("stroke", cssVar(colorVar));
+  line.setAttribute("stroke-width", "3");
+  line.setAttribute("stroke-linejoin", "round");
+  line.setAttribute("stroke-linecap", "round");
+  svg.appendChild(line);
+  // "drawing" animation: dash the full line length, then transition the
+  // offset to 0 — a transition, not a CSS animation, so it can't stall
+  const len = line.getTotalLength();
+  line.style.strokeDasharray = String(len);
+  line.style.strokeDashoffset = String(len);
+  line.style.transition = "stroke-dashoffset 1.1s cubic-bezier(.2,.8,.2,1)";
+  setTimeout(() => { line.style.strokeDashoffset = "0"; }, 20);
+
+  const labelEvery = Math.ceil(points.length / 8);
+  points.forEach((p, i) => {
+    const cx = xFor(i), cy = yFor(p[key]);
+    const dot = document.createElementNS(svgNS, "circle");
+    dot.setAttribute("cx", cx); dot.setAttribute("cy", cy); dot.setAttribute("r", "4");
+    dot.setAttribute("fill", cssVar(colorVar));
+    dot.setAttribute("stroke", cssVar("--surface-1")); dot.setAttribute("stroke-width", "1.5");
+    dot.style.opacity = "0"; dot.style.transformOrigin = `${cx}px ${cy}px`; dot.style.transform = "scale(.3)";
+    dot.style.transition = `opacity .3s ease, transform .3s cubic-bezier(.3,1.5,.5,1)`;
+    dot.style.transitionDelay = (0.15 + i * (1.0 / points.length)) + "s";
+    svg.appendChild(dot);
+    setTimeout(() => { dot.style.opacity = "1"; dot.style.transform = "scale(1)"; }, 20);
+
+    // Value label above each point -- but only at the same sparse cadence as
+    // the date labels below (every point stopped fitting once the chart grew
+    // past ~10 days; with a real Y-axis now drawn, a label on every point
+    // isn't load-bearing anymore -- exact values are always one hover away).
+    if (i % labelEvery === 0 || i === points.length - 1) {
+      const valLabel = document.createElementNS(svgNS, "text");
+      valLabel.setAttribute("x", cx); valLabel.setAttribute("y", Math.max(cy - 10, 11));
+      // Center-anchored labels on the very first/last point spill sideways
+      // past the plot area -- the first one in particular can land right on
+      // top of the Y-axis scale labels when its value sits near a gridline.
+      // Anchor those two to the point instead of straddling it.
+      valLabel.setAttribute("text-anchor", i === 0 ? "start" : (i === points.length - 1 ? "end" : "middle"));
+      valLabel.setAttribute("class", "trend-value-label");
+      valLabel.textContent = fmtCompact(p[key]);
+      valLabel.style.opacity = "0"; valLabel.style.transition = "opacity .3s ease";
+      valLabel.style.transitionDelay = (0.25 + i * (1.0 / points.length)) + "s";
+      svg.appendChild(valLabel);
+      setTimeout(() => { valLabel.style.opacity = "1"; }, 20);
+    }
+
+    const hit = document.createElementNS(svgNS, "circle");
+    hit.setAttribute("cx", cx); hit.setAttribute("cy", cy); hit.setAttribute("r", "14");
+    hit.setAttribute("fill", "transparent"); hit.style.cursor = "default";
+    hit.addEventListener("pointermove", ev => showTip(ev.clientX, ev.clientY, fmtDate(p.date), `${label}: ${fmtInt(p[key])}`));
+    hit.addEventListener("pointerleave", hideTip);
+    svg.appendChild(hit);
+    if (i % labelEvery === 0 || i === points.length - 1) {
+      const t = document.createElementNS(svgNS, "text");
+      t.setAttribute("x", cx); t.setAttribute("y", H - 6); t.setAttribute("text-anchor", "middle");
+      t.setAttribute("class", "trend-axis-label");
+      t.textContent = fmtDate(p.date);
+      svg.appendChild(t);
+    }
+  });
+
+  wrap.appendChild(svg);
+  return wrap;
+}
+
+function buildTable(headers, rows, alignRightFrom) {
+  const table = document.createElement("table"); table.className = "data-table";
+  const thead = document.createElement("thead"); const trh = document.createElement("tr");
+  headers.forEach((h, i) => {
+    const th = document.createElement("th"); th.textContent = h;
+    if (alignRightFrom !== undefined && i >= alignRightFrom) th.style.textAlign = "right";
+    trh.appendChild(th);
+  });
+  thead.appendChild(trh); table.appendChild(thead);
+  const tbody = document.createElement("tbody");
+  rows.forEach(cells => {
+    const tr = document.createElement("tr");
+    cells.forEach((c, i) => {
+      const td = document.createElement("td");
+      if (i === 0) td.className = "name-cell";
+      if (alignRightFrom !== undefined && i >= alignRightFrom) td.className = "num";
+      td.textContent = c;
+      tr.appendChild(td);
+    });
+    tbody.appendChild(tr);
+  });
+  table.appendChild(tbody);
+  return table;
+}
+
+// Channels + sources merged into ONE grouped table — full text, no truncation
+function buildSourceGroupTable(channels, sources) {
+  if (!channels || !channels.length) {
+    const note = document.createElement("div"); note.className = "note-banner small";
+    note.innerHTML = `<b>Нет данных об источниках за выбранный период.</b> Разбивка по источникам собирается только с 17.08.2026 (запуск новой аналитики) — попробуйте выбрать более поздний период.`;
+    return note;
+  }
+  const table = document.createElement("table"); table.className = "data-table";
+  const thead = document.createElement("thead");
+  thead.innerHTML = `<tr><th>Канал / источник</th><th style="text-align:right">Сессии</th><th style="text-align:right">Пользователи</th><th style="text-align:right" title="Успешно завершённые регистрации (подтверждено появлением экрана «Регистрация завершена»), а не просто клик по кнопке.">Успешных регистраций ⓘ</th><th style="text-align:right">Конверсия</th><th style="text-align:right">Отказы</th><th style="text-align:right">Энгейджмент</th></tr>`;
+  table.appendChild(thead);
+  const tbody = document.createElement("tbody");
+  const sortedChannels = (channels||[]).slice().sort((a,b) => b.sessions - a.sessions);
+  sortedChannels.forEach(ch => {
+    const members = (sources||[]).filter(s => s.channel === ch.name).sort((a,b) => b.sessions - a.sessions);
+    // channel header row's rate columns are session-weighted aggregates of its member sources
+    const chSignUps = members.reduce((s,m) => s + (m.signUps||0), 0);
+    const bounceWeighted = members.reduce((s,m) => s + (m.sessions||0) * (m.bounceRate||0), 0);
+    const engagedWeighted = members.reduce((s,m) => s + (m.sessions||0) * (m.engagementRate||0), 0);
+    const memberSessions = members.reduce((s,m) => s + (m.sessions||0), 0) || 1;
+
+    const trh = document.createElement("tr"); trh.className = "group-row";
+    const tdName = document.createElement("td"); tdName.className = "name-cell"; tdName.textContent = channelLabel(ch.name);
+    const tdS = document.createElement("td"); tdS.className = "num"; tdS.textContent = fmtInt(ch.sessions);
+    const tdU = document.createElement("td"); tdU.className = "num"; tdU.textContent = fmtInt(ch.totalUsers);
+    const tdReg = document.createElement("td"); tdReg.className = "num"; tdReg.textContent = chSignUps ? fmtInt(chSignUps) : "—";
+    const tdConv = document.createElement("td"); tdConv.className = "num"; tdConv.textContent = ch.sessions ? fmtPct(chSignUps / ch.sessions * 100) : "—";
+    const tdBounce = document.createElement("td"); tdBounce.className = "num"; tdBounce.textContent = members.length ? fmtPct(bounceWeighted / memberSessions) : "—";
+    const tdEng = document.createElement("td"); tdEng.className = "num"; tdEng.textContent = members.length ? fmtPct(engagedWeighted / memberSessions) : "—";
+    trh.append(tdName, tdS, tdU, tdReg, tdConv, tdBounce, tdEng);
+    if (CHANNEL_TIPS[ch.name]) bindTip(trh, channelLabel(ch.name), CHANNEL_TIPS[ch.name]);
+    tbody.appendChild(trh);
+    const VISIBLE = 6;
+    const makeRow = (m, hidden) => {
+      const tr = document.createElement("tr"); tr.className = "sub-row";
+      if (hidden) tr.style.display = "none";
+      const td1 = document.createElement("td"); td1.className = "name-cell"; td1.textContent = m.name;
+      const td2 = document.createElement("td"); td2.className = "num"; td2.textContent = fmtInt(m.sessions);
+      const td3 = document.createElement("td"); td3.className = "num"; td3.textContent = fmtInt(m.totalUsers);
+      const td4 = document.createElement("td"); td4.className = "num"; td4.textContent = m.signUps ? fmtInt(m.signUps) : "—";
+      const td5 = document.createElement("td"); td5.className = "num"; td5.textContent = m.sessions ? fmtPct((m.signUps||0) / m.sessions * 100) : "—";
+      const td6 = document.createElement("td"); td6.className = "num"; td6.textContent = m.bounceRate != null ? fmtPct(m.bounceRate) : "—";
+      const td7 = document.createElement("td"); td7.className = "num"; td7.textContent = m.engagementRate != null ? fmtPct(m.engagementRate) : "—";
+      tr.append(td1, td2, td3, td4, td5, td6, td7);
+      return tr;
+    };
+    members.slice(0, VISIBLE).forEach(m => tbody.appendChild(makeRow(m, false)));
+    const rest = members.slice(VISIBLE);
+    if (rest.length) {
+      const hiddenRows = rest.map(m => makeRow(m, true));
+      hiddenRows.forEach(r => tbody.appendChild(r));
+      const toggleTr = document.createElement("tr"); toggleTr.className = "sub-row";
+      const toggleTd = document.createElement("td"); toggleTd.className = "name-cell"; toggleTd.colSpan = 7;
+      const toggleBtn = document.createElement("span");
+      toggleBtn.style.color = "var(--series-1)"; toggleBtn.style.cursor = "pointer"; toggleBtn.style.textDecoration = "underline dotted";
+      toggleBtn.textContent = `Показать ещё ${rest.length} источников`;
+      toggleBtn.addEventListener("click", () => {
+        const opening = hiddenRows[0].style.display === "none";
+        hiddenRows.forEach(r => r.style.display = opening ? "" : "none");
+        toggleBtn.textContent = opening ? "Скрыть" : `Показать ещё ${rest.length} источников`;
+      });
+      toggleTd.appendChild(toggleBtn); toggleTr.appendChild(toggleTd);
+      tbody.appendChild(toggleTr);
+    }
+  });
+  table.appendChild(tbody);
+  return table;
+}
+
+// Countries with the same "is this actually worth it" signal the sources
+// table has -- sessions alone can't tell you whether a country converts.
+function buildCountryTable(countries) {
+  const table = document.createElement("table"); table.className = "data-table";
+  const thead = document.createElement("thead");
+  thead.innerHTML = `<tr>
+    <th>Страна</th>
+    <th style="text-align:right">Сессии</th>
+    <th style="text-align:right">Пользователи</th>
+    <th style="text-align:right">Отказы</th>
+    <th style="text-align:right">Вовлечённость</th>
+    <th style="text-align:right" title="Успешно завершённые регистрации (подтверждено появлением экрана «Регистрация завершена»), а не просто клик по кнопке.">Успешных регистраций ⓘ</th>
+    <th style="text-align:right">Конверсия</th>
+  </tr>`;
+  table.appendChild(thead);
+  const tbody = document.createElement("tbody");
+  const sorted = (countries || []).slice().sort((a,b) => b.sessions - a.sessions);
+
+  const makeRow = (c, hidden) => {
+    const tr = document.createElement("tr");
+    if (hidden) tr.style.display = "none";
+    const cells = [
+      c.name,
+      fmtInt(c.sessions),
+      fmtInt(c.totalUsers),
+      c.bounceRate != null ? fmtPct(c.bounceRate) : "—",
+      c.engagementRate != null ? fmtPct(c.engagementRate) : "—",
+      c.signUps ? fmtInt(c.signUps) : "—",
+      c.sessions && c.signUps ? fmtPct(c.signUps / c.sessions * 100) : "—",
+    ];
+    cells.forEach((val, i) => {
+      const td = document.createElement("td");
+      td.className = i === 0 ? "name-cell" : "num";
+      td.textContent = val;
+      tr.appendChild(td);
+    });
+    return tr;
+  };
+  const VISIBLE = 10;
+  sorted.slice(0, VISIBLE).forEach(c => tbody.appendChild(makeRow(c, false)));
+  const rest = sorted.slice(VISIBLE);
+  if (rest.length) {
+    const hiddenRows = rest.map(c => makeRow(c, true));
+    hiddenRows.forEach(r => tbody.appendChild(r));
+    const toggleTr = document.createElement("tr");
+    const toggleTd = document.createElement("td"); toggleTd.className = "name-cell"; toggleTd.colSpan = 7;
+    const toggleBtn = document.createElement("span");
+    toggleBtn.style.color = "var(--series-1)"; toggleBtn.style.cursor = "pointer"; toggleBtn.style.textDecoration = "underline dotted";
+    toggleBtn.textContent = `Показать ещё ${rest.length} стран`;
+    toggleBtn.addEventListener("click", () => {
+      const opening = hiddenRows[0].style.display === "none";
+      hiddenRows.forEach(r => r.style.display = opening ? "" : "none");
+      toggleBtn.textContent = opening ? "Скрыть" : `Показать ещё ${rest.length} стран`;
+    });
+    toggleTd.appendChild(toggleBtn); toggleTr.appendChild(toggleTd);
+    tbody.appendChild(toggleTr);
+  }
+
+  // totals row -- computed over ALL countries (not just the visible top 10),
+  // pinned at the end so it reads as a summary, not just another country;
+  // distinct styling (bold, tinted background, neutral ink) so it doesn't
+  // blend into the blue-link-colored country names above it.
+  if (sorted.length) {
+    const totalSessions = sorted.reduce((s,c) => s + (c.sessions||0), 0);
+    const totalUsers = sorted.reduce((s,c) => s + (c.totalUsers||0), 0);
+    const totalSignUps = sorted.reduce((s,c) => s + (c.signUps||0), 0);
+    const totalBounceW = sorted.reduce((s,c) => s + (c.sessions||0) * (c.bounceRate||0), 0);
+    const totalEngW = sorted.reduce((s,c) => s + (c.sessions||0) * (c.engagementRate||0), 0);
+    const totalTr = document.createElement("tr");
+    totalTr.style.cssText = "font-weight:600;border-top:2px solid var(--grid);background:color-mix(in srgb, var(--brand-a) 5%, transparent);";
+    const totalCells = [
+      "Итого",
+      fmtInt(totalSessions),
+      fmtInt(totalUsers),
+      totalSessions ? fmtPct(totalBounceW / totalSessions) : "—",
+      totalSessions ? fmtPct(totalEngW / totalSessions) : "—",
+      totalSignUps ? fmtInt(totalSignUps) : "—",
+      totalSessions && totalSignUps ? fmtPct(totalSignUps / totalSessions * 100) : "—",
+    ];
+    totalCells.forEach((val, i) => {
+      const td = document.createElement("td");
+      td.className = i === 0 ? "name-cell" : "num";
+      if (i === 0) td.style.color = "var(--text-primary)";
+      td.textContent = val;
+      totalTr.appendChild(td);
+    });
+    tbody.appendChild(totalTr);
+  }
+
+  table.appendChild(tbody);
+  return table;
+}
+
+// Clears and rebuilds the "Новые и вернувшиеся" card content -- called from
+// renderDynamic so it reacts to the period/filter selection instead of
+// always showing the full-period split.
+function buildNvrCardContent(container, nvr, periodSessionRows) {
+  container.innerHTML = "";
+  const nvrTotal = Math.max((nvr?.new || 0) + (nvr?.returning || 0) + (nvr?.unclassified || 0), 1);
+  const stat = document.createElement("div"); stat.className = "split-stat";
+  const mk = (label, val, tip) => {
+    const item = document.createElement("div"); item.className = "split-stat-item"; item.tabIndex = 0;
+    const n = document.createElement("div"); n.className = "n"; n.textContent = fmtInt(val) + " (" + Math.round(val/nvrTotal*100) + "%)";
+    const l = document.createElement("div"); l.className = "l"; l.textContent = label;
+    item.append(n, l);
+    bindTip(item, label, tip);
+    return item;
+  };
+  stat.appendChild(mk("Новые посетители", nvr?.new || 0, "Люди, для которых это первый зафиксированный визит на сайт."));
+  stat.appendChild(mk("Вернувшиеся посетители", nvr?.returning || 0, "Люди, которые уже были на сайте раньше и пришли снова."));
+  if (nvr?.unclassified) {
+    stat.appendChild(mk("Пока не классифицировано", nvr.unclassified, "GA4 ещё не определил, новый это посетитель или вернувшийся, обычно из-за небольшого объёма данных в первые дни после запуска. Это НЕ значит 0 вернувшихся."));
+  }
+  container.appendChild(stat);
+  const bar = document.createElement("div"); bar.className = "split-bar";
+  const seg = (val, color) => { const s = document.createElement("div"); s.style.width = (val/nvrTotal*100) + "%"; s.style.background = color; return s; };
+  bar.appendChild(seg(nvr?.new || 0, cssVar("--series-1")));
+  bar.appendChild(seg(nvr?.returning || 0, cssVar("--series-3")));
+  bar.appendChild(seg(nvr?.unclassified || 0, cssVar("--grid")));
+  container.appendChild(bar);
+
+  // Comparison table -- the split% alone doesn't say anything actionable.
+  // This answers the actual question: do new or returning visitors behave
+  // differently, and which segment actually converts to registration?
+  if (nvr?.detail) {
+    const cmpTitle = document.createElement("div");
+    cmpTitle.style.cssText = "font-size:12px;color:var(--text-secondary);margin:18px 0 8px;font-weight:600;";
+    cmpTitle.textContent = "Сравнение по качеству и конверсии";
+    container.appendChild(cmpTitle);
+    const cmpTable = document.createElement("table"); cmpTable.className = "data-table";
+    const cmpThead = document.createElement("thead");
+    cmpThead.innerHTML = `<tr>
+      <th>Сегмент</th>
+      <th style="text-align:right">Сессии</th>
+      <th style="text-align:right">Польз.</th>
+      <th style="text-align:right">Отказы</th>
+      <th style="text-align:right">Вовлечённость</th>
+      <th style="text-align:right">Ср. время</th>
+      <th style="text-align:right" title="Сколько сессий этого сегмента дошли хотя бы до начала заполнения формы регистрации.">Начали рег. ⓘ</th>
+      <th style="text-align:right" title="Успешно завершённые регистрации (подтверждено появлением экрана «Регистрация завершена»).">Регистраций ⓘ</th>
+      <th style="text-align:right">Конверсия</th>
+    </tr>`;
+    cmpTable.appendChild(cmpThead);
+    const cmpTbody = document.createElement("tbody");
+    const segments = [["new", "Новые"], ["returning", "Вернувшиеся"]];
+    if (nvr.detail.unclassified?.sessions) segments.push(["unclassified", "Не классифицировано"]);
+    segments.forEach(([key, label]) => {
+      const d = nvr.detail[key] || {};
+      const tr = document.createElement("tr");
+      const cells = [
+        label,
+        fmtInt(d.sessions || 0),
+        d.totalUsers ? fmtInt(d.totalUsers) : "—",
+        d.sessions ? fmtPct(d.bounceRate) : "—",
+        d.sessions ? fmtPct(d.engagementRate) : "—",
+        d.avgSessionSec ? fmtDur(d.avgSessionSec) : "—",
+        d.regStarts ? fmtInt(d.regStarts) : "—",
+        d.signUps ? fmtInt(d.signUps) : "—",
+        d.sessions && d.signUps ? fmtPct(d.signUpRate) : "—",
+      ];
+      cells.forEach((c, i) => {
+        const td = document.createElement("td");
+        td.className = i === 0 ? "name-cell" : "num";
+        td.textContent = c;
+        tr.appendChild(td);
+      });
+      cmpTbody.appendChild(tr);
+    });
+    cmpTable.appendChild(cmpTbody);
+    container.appendChild(cmpTable);
+  }
+
+  // daily breakdown -- a single aggregate split hides whether the new/
+  // returning mix is stable or shifting (e.g. a campaign that only brings
+  // one-time visitors, or a loyalty dip after a bad release).
+  if (periodSessionRows && periodSessionRows.length) {
+    const byDate = new Map();
+    periodSessionRows.forEach(r => {
+      if (!byDate.has(r.date)) byDate.set(r.date, { new: 0, returning: 0, unclassified: 0 });
+      const bucket = byDate.get(r.date);
+      if (r.nvr === "new") bucket.new += r.sessions;
+      else if (r.nvr === "returning") bucket.returning += r.sessions;
+      else bucket.unclassified += r.sessions;
+    });
+    const days = Array.from(byDate.keys()).sort();
+    if (days.length > 1) {
+      const trendTitle = document.createElement("div");
+      trendTitle.style.cssText = "font-size:12px;color:var(--text-secondary);margin:18px 0 8px;font-weight:600;";
+      trendTitle.textContent = "Динамика по дням — доля новых/вернувшихся";
+      container.appendChild(trendTitle);
+      const dayMax = Math.max(...days.map(d => { const b = byDate.get(d); return b.new + b.returning + b.unclassified; }), 1);
+      const chartRow = document.createElement("div");
+      chartRow.style.cssText = "display:flex;align-items:flex-end;gap:4px;height:90px;";
+      days.forEach(d => {
+        const b = byDate.get(d);
+        const total = b.new + b.returning + b.unclassified;
+        const outer = document.createElement("div");
+        outer.style.cssText = "flex:1;display:flex;flex-direction:column;align-items:stretch;height:90px;justify-content:flex-end;";
+        const colWrap = document.createElement("div");
+        colWrap.tabIndex = 0;
+        colWrap.style.cssText = `display:flex;flex-direction:column-reverse;height:${Math.max(total/dayMax*100,3)}%;border-radius:3px;overflow:hidden;cursor:pointer;`;
+        const segNew = document.createElement("div"); segNew.style.cssText = `background:${cssVar("--series-1")};height:${total?b.new/total*100:0}%;min-height:${b.new?1:0}px;`;
+        const segRet = document.createElement("div"); segRet.style.cssText = `background:${cssVar("--series-3")};height:${total?b.returning/total*100:0}%;min-height:${b.returning?1:0}px;`;
+        const segUn = document.createElement("div"); segUn.style.cssText = `background:${cssVar("--grid")};height:${total?b.unclassified/total*100:0}%;min-height:${b.unclassified?1:0}px;`;
+        colWrap.append(segNew, segRet, segUn);
+        const pctNew = total ? Math.round(b.new/total*100) : 0;
+        bindTip(colWrap, d, `${d}: новых ${fmtInt(b.new)} (${pctNew}%), вернувшихся ${fmtInt(b.returning)}${b.unclassified ? ", не классифицировано " + fmtInt(b.unclassified) : ""} — всего ${fmtInt(total)} сессий`);
+        outer.appendChild(colWrap);
+        chartRow.appendChild(outer);
+      });
+      container.appendChild(chartRow);
+    }
+  }
+}
+
+/* ===================== KPI tile ===================== */
+const KPI_ICONS = {
+  sessions: '<path d="M3 12h4l2.5 7L13 4l2.5 8H21" stroke="currentColor" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round"/>',
+  totalUsers: '<circle cx="9" cy="8" r="3" stroke="currentColor" stroke-width="2" fill="none"/><path d="M3 20c0-3.3 2.7-6 6-6s6 2.7 6 6" stroke="currentColor" stroke-width="2" fill="none" stroke-linecap="round"/><circle cx="17.5" cy="9" r="2.2" stroke="currentColor" stroke-width="2" fill="none"/><path d="M15.5 20c.2-2.3 1.7-4.2 3.7-4.8" stroke="currentColor" stroke-width="2" fill="none" stroke-linecap="round"/>',
+  averageSessionDuration: '<circle cx="12" cy="12" r="8.5" stroke="currentColor" stroke-width="2" fill="none"/><path d="M12 7.5v5l3.2 2" stroke="currentColor" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round"/>',
+  bounceRate: '<path d="M9.5 20H5.5a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h4" stroke="currentColor" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round"/><path d="M15.5 16l4.5-4-4.5-4" stroke="currentColor" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round"/><path d="M20 12H9.5" stroke="currentColor" stroke-width="2" fill="none" stroke-linecap="round"/>',
+  avgLoadTime: '<path d="M13 2 4.5 13.5H11l-1 8.5L19.5 10.5H13l1-8.5z" stroke="currentColor" stroke-width="2" fill="none" stroke-linejoin="round"/>',
+  signupRate: '<path d="M4 4h16l-6 8v6l-4 2v-8L4 4z" stroke="currentColor" stroke-width="2" fill="none" stroke-linejoin="round" stroke-linecap="round"/>',
+  completionRate: '<path d="M20 6 9 17l-5-5" stroke="currentColor" stroke-width="2.4" fill="none" stroke-linecap="round" stroke-linejoin="round"/>',
+  engagementRate: '<path d="M3 17l5-5 4 4 9-9" stroke="currentColor" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round"/><path d="M15 7h6v6" stroke="currentColor" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round"/>',
+  overallConversionRate: '<circle cx="12" cy="12" r="8" stroke="currentColor" stroke-width="2" fill="none"/><circle cx="12" cy="12" r="3.2" fill="currentColor"/>',
+};
+const KPI_ACCENTS = {
+  sessions: "--series-1", totalUsers: "--series-7", averageSessionDuration: "--series-3",
+  bounceRate: "--series-4", avgLoadTime: "--series-2",
+  signupRate: "--series-5", completionRate: "--series-6",
+  engagementRate: "--good", overallConversionRate: "--brand-a",
+};
+
+function kpiTile(label, rawValue, tipKey, opts) {
+  opts = opts || {};
+  const tile = document.createElement("div"); tile.className = "kpi-tile reveal"; tile.tabIndex = 0;
+  tile.style.setProperty("--kpi-accent", cssVar(KPI_ACCENTS[tipKey] || "--brand-a"));
+  const top = document.createElement("div"); top.className = "kpi-tile-top";
+  const lab = document.createElement("div"); lab.className = "kpi-label";
+  const labText = document.createElement("span"); labText.textContent = label;
+  const dot = document.createElement("span"); dot.className = "info-dot"; dot.textContent = "i";
+  lab.append(labText, dot);
+  const icon = document.createElement("div"); icon.className = "kpi-icon";
+  icon.innerHTML = `<svg viewBox="0 0 24 24">${KPI_ICONS[tipKey] || ""}</svg>`;
+  top.append(lab, icon);
+  const val = document.createElement("div"); val.className = "kpi-value" + (opts.dim ? " dim" : "");
+  tile.append(top, val);
+  if (opts.dim || rawValue == null) {
+    val.textContent = opts.staticText || String(rawValue);
+  } else {
+    val.textContent = "0";
+    animateCount(val, rawValue, { format: opts.format || fmtInt });
+  }
+  if (opts.sub) {
+    const sub = document.createElement("div"); sub.className = "kpi-sub"; sub.textContent = opts.sub;
+    tile.appendChild(sub);
+  }
+  if (KPI_TIPS[tipKey]) bindTip(tile, label, KPI_TIPS[tipKey]);
+  return tile;
+}
+
+/* ===================== filters (client-side, zero extra API calls) ===================== */
+// Every filter just sums matching rows out of the flat tables the Python
+// script already fetched — recompute is instant, no network round-trip.
+// periodDateRange() (defined below, reads the global PERIOD_STATE from the
+// calendar picker) is applied HERE, at the single source every KPI/trend/
+// event number is derived from -- an earlier version tried to pre-filter
+// p.totals externally instead, but renderTab's own hasFlat path recomputes
+// totals straight from these raw rows and silently ignored that override,
+// so the period picker never actually changed anything it displayed.
+function inPeriodRange(dateStr) {
+  const range = typeof periodDateRange === "function" ? periodDateRange() : null;
+  return !range || (dateStr >= range.start && dateStr <= range.end);
+}
+function filterSessionRows(rows, f) {
+  return (rows || []).filter(r =>
+    inPeriodRange(r.date) &&
+    (f.country === "all" || r.country === f.country) &&
+    (f.channel === "all" || r.channel === f.channel) &&
+    (f.os === "all" || r.os === f.os)
+  );
+}
+function filterEventRows(rows, f, nvrMode) {
+  return (rows || []).filter(r =>
+    inPeriodRange(r.date) &&
+    (f.country === "all" || r.country === f.country) &&
+    (f.channel === "all" || r.channel === f.channel) &&
+    (f.os === "all" || r.os === f.os) &&
+    (!nvrMode || nvrMode === "all" || r.nvr === nvrMode)
+  );
+}
+function computeFilteredTotals(sessionRows) {
+  let sessions=0, totalUsers=0, screenPageViews=0, bounceSessions=0, engagedSessions=0, engagementDurationSec=0;
+  sessionRows.forEach(r => {
+    sessions += r.sessions; totalUsers += r.totalUsers; screenPageViews += r.screenPageViews;
+    bounceSessions += r.bounceSessions; engagedSessions += r.engagedSessions; engagementDurationSec += r.engagementDurationSec || 0;
+  });
+  return {
+    sessions, totalUsers, screenPageViews,
+    bounceRate: sessions > 0 ? bounceSessions / sessions * 100 : 0,
+    engagementRate: sessions > 0 ? engagedSessions / sessions * 100 : 0,
+    // Divided by ALL sessions (incl. ~70-77% bounces with ~0 engaged time on
+    // this site), this collapsed to a misleading "18 seconds" -- GA4's own
+    // "average session duration" metric is 5-10x higher, but it isn't a
+    // summable raw metric (can't be correctly re-derived per an arbitrary
+    // client-side period/country/etc. filter the way engagementDurationSec
+    // can). Dividing by ENGAGED sessions instead uses only data already in
+    // the flat rows, stays fully period-reactive, and answers the question
+    // that's actually useful: how long do people who didn't bounce stay.
+    averageSessionDuration: engagedSessions > 0 ? engagementDurationSec / engagedSessions : 0,
+  };
+}
+function computeFilteredEvents(eventRows) {
+  const events = {};
+  eventRows.forEach(r => {
+    if (!events[r.event]) events[r.event] = { count: 0, users: 0 };
+    events[r.event].count += r.count; events[r.event].users += r.users;
+  });
+  return events;
+}
+function computeFilteredTrend(sessionRows) {
+  const map = new Map();
+  sessionRows.forEach(r => {
+    if (!map.has(r.date)) map.set(r.date, { date: r.date, sessions: 0, totalUsers: 0, screenPageViews: 0 });
+    const acc = map.get(r.date);
+    acc.sessions += r.sessions; acc.totalUsers += r.totalUsers; acc.screenPageViews += r.screenPageViews;
+  });
+  return Array.from(map.values()).sort((a,b) => a.date.localeCompare(b.date));
+}
+function computeFilteredEventTrend(eventRows, eventName) {
+  const map = new Map();
+  (eventRows || []).forEach(r => {
+    if (r.event !== eventName) return;
+    if (!map.has(r.date)) map.set(r.date, { date: r.date, count: 0 });
+    map.get(r.date).count += r.count;
+  });
+  return Array.from(map.values()).sort((a,b) => a.date.localeCompare(b.date));
+}
+
+// Client-side breakdowns for the sections that CAN be made period-reactive
+// from the existing flat tables (country/os/newVsReturning are all captured
+// per-row) -- mirrors the shape each section's render code already expects,
+// so the same downstream table/donut/card-building functions work whether
+// fed the server-computed full-period version or this filtered one.
+function computeCountryBreakdown(sessionRows, eventRows) {
+  const map = new Map();
+  (sessionRows || []).forEach(r => {
+    if (!map.has(r.country)) map.set(r.country, { name: r.country, sessions: 0, totalUsers: 0, signUps: 0, _bounceSessions: 0, _engagedSessions: 0 });
+    const acc = map.get(r.country);
+    acc.sessions += r.sessions; acc.totalUsers += r.totalUsers;
+    acc._bounceSessions += r.bounceSessions || 0; acc._engagedSessions += r.engagedSessions || 0;
+  });
+  (eventRows || []).forEach(r => {
+    if (r.event !== "sign_up_success") return;
+    if (!map.has(r.country)) map.set(r.country, { name: r.country, sessions: 0, totalUsers: 0, signUps: 0, _bounceSessions: 0, _engagedSessions: 0 });
+    map.get(r.country).signUps += r.count;
+  });
+  return Array.from(map.values()).map(acc => ({
+    name: acc.name, sessions: acc.sessions, totalUsers: acc.totalUsers, signUps: acc.signUps,
+    bounceRate: acc.sessions ? acc._bounceSessions / acc.sessions * 100 : 0,
+    engagementRate: acc.sessions ? acc._engagedSessions / acc.sessions * 100 : 0,
+  })).sort((a,b) => b.sessions - a.sessions);
+}
+function computeOsBreakdown(sessionRows) {
+  const map = new Map();
+  (sessionRows || []).forEach(r => map.set(r.os, (map.get(r.os) || 0) + r.sessions));
+  return Array.from(map.entries()).map(([name, sessions]) => ({ name: osLabel(name), sessions })).sort((a,b) => b.sessions - a.sessions);
+}
+function filterSourceRows(rows, f) {
+  return (rows || []).filter(r => inPeriodRange(r.date) && (f.channel === "all" || r.channel === f.channel));
+}
+function filterLandingRows(rows) {
+  // landing rows carry no country/channel/os dims -- period is the only
+  // filter that applies to this table (disclosed in its section hint).
+  return (rows || []).filter(r => inPeriodRange(r.date));
+}
+function computeSourceBreakdown(sourceRows) {
+  const map = new Map();
+  (sourceRows || []).forEach(r => {
+    const key = r.channel + "||" + r.source;
+    if (!map.has(key)) map.set(key, { channel: r.channel, name: r.source, sessions: 0, totalUsers: 0, signUps: 0, _bounceSessions: 0, _engagedSessions: 0 });
+    const acc = map.get(key);
+    acc.sessions += r.sessions; acc.totalUsers += r.totalUsers;
+    acc._bounceSessions += r.bounceSessions || 0; acc._engagedSessions += r.engagedSessions || 0;
+    acc.signUps += r.signUps || 0;
+  });
+  return Array.from(map.values()).map(acc => ({
+    channel: acc.channel, name: acc.name, sessions: acc.sessions, totalUsers: acc.totalUsers, signUps: acc.signUps,
+    bounceRate: acc.sessions ? acc._bounceSessions / acc.sessions * 100 : 0,
+    engagementRate: acc.sessions ? acc._engagedSessions / acc.sessions * 100 : 0,
+  })).sort((a,b) => b.sessions - a.sessions);
+}
+function computeChannelBreakdown(sourcesArr) {
+  const map = new Map();
+  (sourcesArr || []).forEach(s => {
+    if (!map.has(s.channel)) map.set(s.channel, { name: s.channel, sessions: 0, totalUsers: 0 });
+    const acc = map.get(s.channel);
+    acc.sessions += s.sessions; acc.totalUsers += s.totalUsers;
+  });
+  return Array.from(map.values()).sort((a,b) => b.sessions - a.sessions);
+}
+function computeLandingBreakdown(landingRows) {
+  const map = new Map();
+  (landingRows || []).forEach(r => {
+    if (!map.has(r.name)) map.set(r.name, { name: r.name, sessions: 0, totalUsers: 0, screenPageViews: 0, regStarts: 0, signUps: 0, _bounceSessions: 0, _engagedSessions: 0, _durSum: 0 });
+    const acc = map.get(r.name);
+    acc.sessions += r.sessions; acc.totalUsers += r.totalUsers; acc.screenPageViews += r.screenPageViews;
+    acc._bounceSessions += r.bounceSessions || 0; acc._engagedSessions += r.engagedSessions || 0;
+    acc._durSum += r.engagementDurationSec || 0;
+    acc.regStarts += r.regStarts || 0; acc.signUps += r.signUps || 0;
+  });
+  return Array.from(map.values()).map(acc => ({
+    name: acc.name, sessions: acc.sessions, totalUsers: acc.totalUsers, screenPageViews: acc.screenPageViews,
+    regStarts: acc.regStarts, signUps: acc.signUps,
+    bounceRate: acc.sessions ? acc._bounceSessions / acc.sessions * 100 : 0,
+    engagementRate: acc.sessions ? acc._engagedSessions / acc.sessions * 100 : 0,
+    avgSessionSec: acc.sessions ? acc._durSum / acc.sessions : 0,
+  })).sort((a,b) => b.sessions - a.sessions);
+}
+function computeNvrFromRows(sessionRows, eventRows) {
+  const mk = () => ({ sessions: 0, totalUsers: 0, bounceSessions: 0, engagedSessions: 0, durSum: 0, regStarts: 0, signUps: 0 });
+  const acc = { new: mk(), returning: mk(), unclassified: mk() };
+  const bucketOf = nvr => nvr === "new" ? "new" : nvr === "returning" ? "returning" : "unclassified";
+  (sessionRows || []).forEach(r => {
+    const a = acc[bucketOf(r.nvr)];
+    a.sessions += r.sessions; a.totalUsers += r.totalUsers;
+    a.bounceSessions += r.bounceSessions || 0; a.engagedSessions += r.engagedSessions || 0;
+    a.durSum += r.engagementDurationSec || 0;
+  });
+  (eventRows || []).forEach(r => {
+    const a = acc[bucketOf(r.nvr)];
+    if (r.event === "reg_form_start") a.regStarts += r.count;
+    if (r.event === "sign_up_success") a.signUps += r.count;
+  });
+  const out = { new: 0, returning: 0, unclassified: 0, detail: {} };
+  ["new", "returning", "unclassified"].forEach(key => {
+    const a = acc[key];
+    out[key] = a.sessions;
+    out.detail[key] = {
+      sessions: a.sessions, totalUsers: a.totalUsers,
+      bounceRate: a.sessions ? a.bounceSessions / a.sessions * 100 : 0,
+      engagementRate: a.sessions ? a.engagedSessions / a.sessions * 100 : 0,
+      avgSessionSec: a.sessions ? a.durSum / a.sessions : 0,
+      regStarts: a.regStarts, signUps: a.signUps,
+      signUpRate: a.sessions ? round2(a.signUps / a.sessions * 100) : 0,
+    };
+  });
+  return out;
+}
+
+/* ===================== calendar period picker (неделя/месяц/квартал) ===================== */
+const MONTH_NAMES = ["Январь","Февраль","Март","Апрель","Май","Июнь","Июль","Август","Сентябрь","Октябрь","Ноябрь","Декабрь"];
+function addDaysISO(dateStr, n) {
+  const d = new Date(dateStr + "T00:00:00Z");
+  d.setUTCDate(d.getUTCDate() + n);
+  return d.toISOString().slice(0, 10);
+}
+function mondayOfISO(dateStr) {
+  const d = new Date(dateStr + "T00:00:00Z");
+  const day = (d.getUTCDay() + 6) % 7; // 0=Mon..6=Sun
+  return addDaysISO(dateStr, -day);
+}
+function fmtDM(dateStr) {
+  const [, m, d] = dateStr.split("-");
+  return `${d}.${m}`;
+}
+function monthKey(dateStr) { return dateStr.slice(0, 7); } // "YYYY-MM"
+function quarterOf(dateStr) {
+  const [y, m] = dateStr.slice(0, 7).split("-").map(Number);
+  return { year: y, q: Math.ceil(m / 3) };
+}
+function lastDayOfMonth(year, month) { // month: 1-12
+  return new Date(Date.UTC(year, month, 0)).getUTCDate();
+}
+// Monday-aligned week chunks clipped to the month's own boundaries (so the
+// first/last chunk can be shorter than 7 days, matching how a real calendar
+// week overlaps a month edge).
+function weeksInMonth(year, month) {
+  const mm = String(month).padStart(2, "0");
+  const monthStart = `${year}-${mm}-01`;
+  const monthEnd = `${year}-${mm}-${String(lastDayOfMonth(year, month)).padStart(2, "0")}`;
+  const weeks = [];
+  let cur = mondayOfISO(monthStart);
+  while (cur <= monthEnd) {
+    const weekEnd = addDaysISO(cur, 6);
+    weeks.push({ start: cur < monthStart ? monthStart : cur, end: weekEnd > monthEnd ? monthEnd : weekEnd });
+    cur = addDaysISO(cur, 7);
+  }
+  return weeks;
+}
+function monthsInQuarter(year, q) {
+  const first = (q - 1) * 3 + 1;
+  return [first, first + 1, first + 2];
+}
+
+// mode: "all" | "quarter" | "month" | "week" -- separate from quarter/month/
+// week, which just remember the last-chosen context so switching modes
+// doesn't lose your place. Keeping "all" as its own mode (rather than
+// quarter===null) avoids the picker silently re-selecting the current
+// quarter the next time it rebuilds and it re-populates quarter from data.
+let PERIOD_STATE = { mode: "all", quarter: null, month: null, week: null, day: null };
+
+function periodDateRange() {
+  if (PERIOD_STATE.mode === "all" || !PERIOD_STATE.quarter) return null;
+  if (PERIOD_STATE.mode === "day" && PERIOD_STATE.day) return { start: PERIOD_STATE.day, end: PERIOD_STATE.day };
+  if (PERIOD_STATE.mode === "week" && PERIOD_STATE.week) return PERIOD_STATE.week;
+  if (PERIOD_STATE.mode === "month" && PERIOD_STATE.month) {
+    const mm = String(PERIOD_STATE.month).padStart(2, "0");
+    const y = PERIOD_STATE.quarter.year;
+    return { start: `${y}-${mm}-01`, end: `${y}-${mm}-${String(lastDayOfMonth(y, PERIOD_STATE.month)).padStart(2,"0")}` };
+  }
+  const [m1, , m3] = monthsInQuarter(PERIOD_STATE.quarter.year, PERIOD_STATE.quarter.q);
+  const y = PERIOD_STATE.quarter.year;
+  return { start: `${y}-${String(m1).padStart(2,"0")}-01`, end: `${y}-${String(m3).padStart(2,"0")}-${String(lastDayOfMonth(y, m3)).padStart(2,"0")}` };
+}
+
+function buildPeriodPicker(availableDates) {
+  const monthsRow = document.getElementById("period-row-months");
+  const weeksRow = document.getElementById("period-row-weeks");
+  if (!availableDates.length) { monthsRow.innerHTML = ""; weeksRow.style.display = "none"; return; }
+  const maxDate = availableDates[availableDates.length - 1];
+  if (!PERIOD_STATE.quarter) PERIOD_STATE.quarter = quarterOf(maxDate);
+
+  const monthsWithData = monthsInQuarter(PERIOD_STATE.quarter.year, PERIOD_STATE.quarter.q)
+    .filter(m => {
+      const mm = String(m).padStart(2, "0");
+      return availableDates.some(d => d.startsWith(`${PERIOD_STATE.quarter.year}-${mm}`));
+    });
+
+  monthsRow.innerHTML = "";
+  const pill = (label, active, onClick, disabled) => {
+    const b = document.createElement("button"); b.type = "button"; b.className = "period-pill" + (active ? " active" : "");
+    b.textContent = label; b.disabled = !!disabled;
+    if (!disabled) b.addEventListener("click", onClick);
+    return b;
+  };
+  monthsRow.appendChild(pill("Весь период", PERIOD_STATE.mode === "all", () => { PERIOD_STATE.mode = "all"; onPeriodChange(); }));
+  monthsWithData.forEach(m => {
+    monthsRow.appendChild(pill(MONTH_NAMES[m - 1], PERIOD_STATE.mode === "month" && PERIOD_STATE.month === m, () => { PERIOD_STATE.mode = "month"; PERIOD_STATE.month = m; onPeriodChange(); }));
+  });
+
+  const daysRow = document.getElementById("period-row-days");
+  if (PERIOD_STATE.mode === "month" || PERIOD_STATE.mode === "week" || PERIOD_STATE.mode === "day") {
+    weeksRow.style.display = "";
+    weeksRow.innerHTML = "";
+    weeksRow.appendChild(pill("Весь месяц", PERIOD_STATE.mode === "month", () => { PERIOD_STATE.mode = "month"; onPeriodChange(); }));
+    weeksInMonth(PERIOD_STATE.quarter.year, PERIOD_STATE.month).forEach(w => {
+      const hasData = availableDates.some(d => d >= w.start && d <= w.end);
+      const active = PERIOD_STATE.mode === "week" && PERIOD_STATE.week && PERIOD_STATE.week.start === w.start && PERIOD_STATE.week.end === w.end;
+      weeksRow.appendChild(pill(`${fmtDM(w.start)}–${fmtDM(w.end)}`, active, () => { PERIOD_STATE.mode = "week"; PERIOD_STATE.week = w; onPeriodChange(); }, !hasData));
+    });
+
+    // day-of-month pills -- every calendar day, disabled if no data that day
+    daysRow.style.display = "";
+    daysRow.innerHTML = "";
+    const mm = String(PERIOD_STATE.month).padStart(2, "0");
+    const y = PERIOD_STATE.quarter.year;
+    const numDays = lastDayOfMonth(y, PERIOD_STATE.month);
+    for (let d = 1; d <= numDays; d++) {
+      const dateStr = `${y}-${mm}-${String(d).padStart(2, "0")}`;
+      const hasData = availableDates.includes(dateStr);
+      const active = PERIOD_STATE.mode === "day" && PERIOD_STATE.day === dateStr;
+      daysRow.appendChild(pill(String(d), active, () => { PERIOD_STATE.mode = "day"; PERIOD_STATE.day = dateStr; onPeriodChange(); }, !hasData));
+    }
+  } else {
+    weeksRow.style.display = "none";
+    daysRow.style.display = "none";
+  }
+}
+
+const OS_LABELS = { "Windows": "Windows", "Macintosh": "macOS", "iOS": "iOS", "Android": "Android", "Linux": "Linux", "Chrome OS": "Chrome OS", "Tizen": "Tizen" };
+function osLabel(name) { return OS_LABELS[name] || name; }
+
+function uniqueSorted(rows, field, labelFn) {
+  const totals = new Map();
+  rows.forEach(r => totals.set(r[field], (totals.get(r[field]) || 0) + r.sessions));
+  return Array.from(totals.entries())
+    .sort((a,b) => b[1] - a[1])
+    .map(([value]) => ({ value, label: labelFn ? labelFn(value) : value }));
+}
+
+function buildFilterBar(sessionRows, onChange) {
+  const bar = document.createElement("div"); bar.className = "filter-bar";
+  const filters = { country: "all", channel: "all", os: "all" };
+
+  const fields = [
+    { key: "country", label: "Все страны", options: uniqueSorted(sessionRows, "country") },
+    { key: "channel", label: "Все источники", options: uniqueSorted(sessionRows, "channel", channelLabel) },
+    { key: "os", label: "Все устройства", options: uniqueSorted(sessionRows, "os", osLabel) },
+  ];
+
+  const clearBtn = document.createElement("button"); clearBtn.className = "filter-clear"; clearBtn.type = "button";
+  clearBtn.textContent = "Сбросить фильтры";
+
+  fields.forEach(f => {
+    const field = document.createElement("div"); field.className = "filter-field";
+    const select = document.createElement("select"); select.className = "filter-select";
+    const allOpt = document.createElement("option"); allOpt.value = "all"; allOpt.textContent = f.label;
+    select.appendChild(allOpt);
+    f.options.forEach(o => {
+      const opt = document.createElement("option"); opt.value = o.value; opt.textContent = o.label;
+      select.appendChild(opt);
+    });
+    select.addEventListener("change", () => {
+      filters[f.key] = select.value;
+      field.classList.toggle("active", select.value !== "all");
+      clearBtn.classList.toggle("show", Object.values(filters).some(v => v !== "all"));
+      onChange(filters);
+    });
+    field.appendChild(select);
+    bar.appendChild(field);
+  });
+
+  clearBtn.addEventListener("click", () => {
+    filters.country = "all"; filters.channel = "all"; filters.os = "all";
+    bar.querySelectorAll("select").forEach(s => s.value = "all");
+    bar.querySelectorAll(".filter-field").forEach(f => f.classList.remove("active"));
+    clearBtn.classList.remove("show");
+    onChange(filters);
+  });
+  bar.appendChild(clearBtn);
+
+  return { el: bar, filters };
+}
+
+/* ===================== render one tab ===================== */
+function renderTab(containerId, p, deviceLabel) {
+  const el = document.getElementById(containerId);
+  el.innerHTML = "";
+  const { totals, events, avg_load_time_ms: avgLoadTimeMs, trend, channels, sources, countries, browsers, operating_systems: oses, landing_pages: landingPages, new_vs_returning: nvr, signup_success_by_source: successBySource, event_details: eventDetails, filter_session_rows: sessionRows, filter_event_rows: eventRows, filter_source_rows: sourceRows, filter_landing_rows: landingRows } = p;
+  const hasFlat = sessionRows && sessionRows.length && eventRows;
+
+  const kpiZone = document.createElement("div");
+  const belowFilterZone = document.createElement("div");
+  let funnelMode = "all"; // funnel-only toggle: "all" visitors vs "new" visitors
+
+  // Persistent content containers for the sections that react to the
+  // period/filter selection, sourced from the flat tables (country/os/nvr/
+  // event counts from filter_session_rows+filter_event_rows; channel+source
+  // from filter_source_rows; landing page from filter_landing_rows -- two
+  // separate lean tables, not piled onto the 5-dim session table, to avoid
+  // a combinatorial blowup in row count/file size). Created once,
+  // repopulated by renderDynamic on every call -- by the time they're
+  // appended into the page further down, the initial
+  // renderDynamic(initialFilters) call below has already filled them once.
+  // Браузеры stays static/full-period -- that one dimension genuinely isn't
+  // captured anywhere in the flat tables.
+  const geoCard = document.createElement("div"); geoCard.className = "card";
+  const osCard = document.createElement("div");
+  const evCard = document.createElement("div"); evCard.className = "card";
+  const nvrCard = document.createElement("div"); nvrCard.className = "card";
+  const srcCard = document.createElement("div"); srcCard.className = "card";
+  const lpCard = document.createElement("div"); lpCard.className = "card";
+
+  function renderDynamic(filters) {
+    const fSessionRows = hasFlat ? filterSessionRows(sessionRows, filters) : null;
+    const fTotals = hasFlat ? computeFilteredTotals(fSessionRows) : totals;
+    // KPI tiles above the funnel always reflect ALL visitors -- only the funnel
+    // diagram itself reacts to the "Все посетители"/"Только новые" toggle.
+    const fEventRowsAll = hasFlat ? filterEventRows(eventRows, filters, "all") : [];
+    const fEventsAll = hasFlat ? computeFilteredEvents(fEventRowsAll) : events;
+    const fEventsFunnel = hasFlat ? computeFilteredEvents(filterEventRows(eventRows, filters, funnelMode)) : events;
+    const fTrend = hasFlat ? computeFilteredTrend(fSessionRows) : trend;
+    const fRegTrend = hasFlat ? computeFilteredEventTrend(fEventRowsAll, "sign_up_success") : [];
+
+    // Funnel + conversion rates are USER-based, not session-based: a person
+    // can visit several times before registering (or while filling the form
+    // more than once), which would otherwise dilute the "visit -> register"
+    // rate against a denominator inflated by repeat browsing. Registration
+    // itself is a person-level action, so its funnel should be measured
+    // against distinct people, not visits. The top traffic KPIs (Сессии /
+    // Пользователи / bounce / engagement / duration) stay session-based --
+    // those ARE inherently per-visit concepts and don't make sense per-user.
+    const stepsFrom = fEvents => [
+      { name: "__visit", label: "Посетители сайта", value: fTotals.totalUsers, desc: "Все уникальные пользователи за период (с учётом фильтров)." },
+      ...["reg_form_start", "sign_up_success"].map(name => ({
+        name, label: GLOSSARY[name].label, value: (fEvents[name] && fEvents[name].users) || 0, desc: GLOSSARY[name].desc,
+      })),
+    ];
+    // Only 3 real funnel steps -- a separate "arrived at registration page"
+    // step (reg_page_view, GA4's own pageview signal) turned out unreliable
+    // as a uniform cross-platform signal: on mobile the registration form can
+    // open as an in-page overlay without the URL/pagePath ever changing, so
+    // pageview filtering silently misses most mobile attempts (verified:
+    // mobile reg_page_view came in far BELOW reg_form_start, which is
+    // impossible if it were truly a superset step). reg_form_start is the one
+    // signal proven reliable on both platforms (fires on the form fields
+    // actually appearing, regardless of routing/modal mechanics), so it's the
+    // funnel's real step 1.
+    const kpiSteps = stepsFrom(fEventsAll);
+    const signupRate = kpiSteps[0].value > 0 ? kpiSteps[1].value / kpiSteps[0].value * 100 : 0;
+    const overallConversionRate = fTotals.totalUsers > 0 ? kpiSteps[2].value / fTotals.totalUsers * 100 : 0;
+
+    // ---- THE funnel diagram: the one thing that reacts to the toggle ----
+    const funnelSteps = stepsFrom(fEventsFunnel);
+
+    // ---- KPI grid: headline numbers, including the funnel's key conversions
+    // (dashboard design: 5-9 max, but conversion is the whole point of the page) ----
+    kpiZone.innerHTML = "";
+    const kpiGrid = document.createElement("div"); kpiGrid.className = "kpi-grid";
+    kpiGrid.appendChild(kpiTile("Сессии", fTotals.sessions, "sessions"));
+    kpiGrid.appendChild(kpiTile("Пользователи", fTotals.totalUsers, "totalUsers"));
+    kpiGrid.appendChild(kpiTile("Начали заполнять форму", signupRate, "signupRate", { format: v => fmtPct(v), sub: `${fmtInt(kpiSteps[1].value)} человек` }));
+    kpiGrid.appendChild(kpiTile("Конверсия сайта: посетитель → регистрация", overallConversionRate, "overallConversionRate", {
+      // this is two small percentages multiplied together (6% * 0.4% и т.п.),
+      // so it can land well under 0.1% -- fmtPct's fixed 1 decimal would
+      // round the site's headline conversion number to a flat, useless "0%"
+      format: v => (v < 1 ? v.toFixed(2) : v.toFixed(1)).replace(".", ",") + "%",
+      sub: `${fmtInt(kpiSteps[2].value)} из ${fmtInt(fTotals.totalUsers)} посетителей`,
+    }));
+    kpiGrid.appendChild(kpiTile("Ср. время вовлечённой сессии", fTotals.averageSessionDuration, "averageSessionDuration", { format: fmtDur }));
+    kpiGrid.appendChild(kpiTile("Показатель отказов", fTotals.bounceRate, "bounceRate", { format: v => v.toFixed(0) + "%" }));
+    kpiGrid.appendChild(kpiTile("Engagement rate", fTotals.engagementRate, "engagementRate", { format: v => v.toFixed(0) + "%" }));
+    kpiGrid.appendChild(avgLoadTimeMs && avgLoadTimeMs > 0
+      ? kpiTile("Ср. время загрузки", avgLoadTimeMs, "avgLoadTime", { format: v => (v/1000).toFixed(1).replace(".", ",") + " с" })
+      : kpiTile("Ср. время загрузки", null, "avgLoadTime", { dim: true, staticText: "собираем данные" }));
+    kpiZone.appendChild(kpiGrid);
+
+    belowFilterZone.innerHTML = "";
+    if (funnelSteps[0].value > 0) {
+      const wrap = document.createElement("div"); wrap.className = "funnel-highlight reveal";
+      const t = document.createElement("div"); t.className = "funnel-highlight-title"; t.textContent = "Воронка регистрации";
+      const h = document.createElement("div"); h.className = "funnel-highlight-hint"; h.textContent = "посетитель → начали заполнять форму → успешная регистрация";
+      wrap.append(t, h);
+
+      if (hasFlat) {
+        const toggle = document.createElement("div"); toggle.className = "funnel-toggle";
+        const mkBtn = (mode, label, tip) => {
+          const b = document.createElement("button"); b.type = "button";
+          b.className = "funnel-toggle-btn" + (funnelMode === mode ? " active" : "");
+          b.textContent = label;
+          bindTip(b, label, tip);
+          b.addEventListener("click", () => { if (funnelMode !== mode) { funnelMode = mode; renderDynamic(filters); } });
+          return b;
+        };
+        toggle.appendChild(mkBtn("all", "Все посетители", "Воронка по всем визитам — казино, где многие заходят не регистрироваться, а сразу играть под своим аккаунтом, так что этот срез размывает конверсию в регистрацию."));
+        toggle.appendChild(mkBtn("new", "Только новые", "Воронка только по тем, кто на сайте впервые — честная конверсия именно в регистрацию, без вернувшихся игроков, которым регистрация не нужна."));
+        wrap.appendChild(toggle);
+      }
+
+      const card = document.createElement("div"); card.className = "card funnel-card";
+      card.appendChild(buildVisualFunnel(funnelSteps));
+      wrap.appendChild(card);
+
+      // (removed: a "which trigger fired sign_up_success" diagnostic card
+      // that lived here -- it was a debugging aid for verifying the 3-trigger
+      // dedup setup, not something a normal reader of the report needs)
+
+      belowFilterZone.appendChild(wrap);
+    }
+
+    // ---- traffic trend (also filter-reactive) ----
+    sectionTitle(belowFilterZone, "Динамика трафика по дням", "сессии в день");
+    const trendCard = document.createElement("div"); trendCard.className = "card reveal";
+    trendCard.appendChild(buildTrendChart(fTrend || [], "sessions", "Сессии", "--series-1"));
+    belowFilterZone.appendChild(trendCard);
+
+    // Registrations only use the clean post-fix window (see
+    // SIGN_UP_SUCCESS_CLEAN_START server-side) -- so this chart naturally
+    // starts later than the sessions chart when the period spans the bugged
+    // days, instead of plotting inflated/deflated counts. Kept as its own
+    // chart (not merged into the sessions one) -- the two scales differ by
+    // 3+ orders of magnitude, and separate charts read far more clearly
+    // than either forcing a shared axis or splitting one chart into bands.
+    if (fRegTrend.length) {
+      sectionTitle(belowFilterZone, "Динамика регистраций по дням", "успешных регистраций в день");
+      const regTrendCard = document.createElement("div"); regTrendCard.className = "card reveal";
+      regTrendCard.appendChild(buildTrendChart(fRegTrend, "count", "Регистрации", "--good"));
+      belowFilterZone.appendChild(regTrendCard);
+    }
+
+    // Reactive sections below (feasible from the flat rows -- country/os/
+    // new-vs-returning/event counts/channel+source/landingPage all carry
+    // date, so period filtering applies cleanly; source/landing rows don't
+    // carry country/os, so only period + (for sources) the channel filter
+    // apply to those two -- disclosed in their section hints).
+    if (hasFlat) {
+      geoCard.innerHTML = "";
+      geoCard.appendChild(buildCountryTable(computeCountryBreakdown(fSessionRows, fEventRowsAll)));
+      osCard.innerHTML = "";
+      osCard.appendChild(donutBlock("Операционные системы", computeOsBreakdown(fSessionRows), "sessions"));
+      buildEventsTableCard(evCard, fEventsAll, fTotals.totalUsers);
+      buildNvrCardContent(nvrCard, computeNvrFromRows(fSessionRows, fEventRowsAll), fSessionRows);
+      const fSourceRows = filterSourceRows(sourceRows, filters);
+      const fSourcesArr = computeSourceBreakdown(fSourceRows);
+      srcCard.innerHTML = "";
+      srcCard.appendChild(buildSourceGroupTable(computeChannelBreakdown(fSourcesArr), fSourcesArr));
+      const fLandingRows = filterLandingRows(landingRows);
+      buildLandingPagesCard(lpCard, computeLandingBreakdown(fLandingRows));
+    } else {
+      geoCard.innerHTML = ""; geoCard.appendChild(buildCountryTable(countries || []));
+      osCard.innerHTML = ""; osCard.appendChild(donutBlock("Операционные системы", oses, "sessions"));
+      buildEventsTableCard(evCard, events, totals.totalUsers);
+      buildNvrCardContent(nvrCard, nvr, null);
+      srcCard.innerHTML = ""; srcCard.appendChild(buildSourceGroupTable(channels, sources));
+      buildLandingPagesCard(lpCard, landingPages);
+    }
+
+    // kpiZone/belowFilterZone are rebuilt from scratch on every filter change, so
+    // freshly-created .reveal elements start at opacity:0 again each time — must
+    // re-trigger the entrance transition here, not just once on initial page load,
+    // or filtered content stays invisible (present in the DOM, but never revealed).
+    setTimeout(() => {
+      document.querySelectorAll(".reveal:not(.revealed)").forEach(el => el.classList.add("revealed"));
+    }, 20);
+  }
+
+  const initialFilters = { country: "all", channel: "all", os: "all" };
+  renderDynamic(initialFilters);
+  el.appendChild(kpiZone);
+
+  if (hasFlat) {
+    const { el: barEl, filters: liveFilters } = buildFilterBar(sessionRows, (newFilters) => renderDynamic(newFilters));
+    el.appendChild(barEl);
+  }
+
+  el.appendChild(belowFilterZone);
+
+  const srcBody = collapsibleSection(el, "Источники трафика", "по каналу и конкретному источнику — пересчитывается по выбранному периоду");
+  srcBody.appendChild(srcCard);
+
+  const geoBody = collapsibleSection(el, "География", "какие страны реально дают регистрации, а не только трафик — пересчитывается по выбранному периоду");
+  geoBody.appendChild(geoCard);
+
+  const lpBody = collapsibleSection(el, "Топ посадочных страниц", "с какой страницы человек начал визит — трафик, вовлечённость и весь путь до регистрации по каждой странице отдельно — пересчитывается по выбранному периоду");
+  lpBody.appendChild(lpCard);
+
+  function buildLandingPagesCard(container, landingPagesArr) {
+  container.innerHTML = "";
+  if (!landingPagesArr || !landingPagesArr.length) {
+    const note = document.createElement("div"); note.className = "note-banner small";
+    note.innerHTML = `<b>Нет данных о посадочных страницах за выбранный период.</b> Эта разбивка собирается только с 17.08.2026 (запуск новой аналитики) — попробуйте выбрать более поздний период.`;
+    container.appendChild(note);
+    return;
+  }
+  const lpTable = document.createElement("table"); lpTable.className = "data-table";
+  const lpThead = document.createElement("thead");
+  lpThead.innerHTML = `<tr>
+    <th>Страница</th>
+    <th style="text-align:right">Сессии</th>
+    <th style="text-align:right">Польз.</th>
+    <th style="text-align:right" title="Сколько страниц в среднем просматривает посетитель за визит, начавшийся с этой страницы.">Стр./сессию ⓘ</th>
+    <th style="text-align:right" title="Сколько времени в среднем длится визит, начавшийся с этой страницы.">Ср. время ⓘ</th>
+    <th style="text-align:right" title="Доля сессий без какого-либо взаимодействия с сайтом (или короче 10 сек и без второй страницы).">Отказы ⓘ</th>
+    <th style="text-align:right" title="Доля сессий с осмысленным взаимодействием (10+ сек, или 2+ страницы, или ключевое событие).">Вовлечённость ⓘ</th>
+    <th style="text-align:right" title="Сколько визитов, начавшихся с этой страницы, дошли хотя бы до начала заполнения формы регистрации.">Начали рег. ⓘ</th>
+    <th style="text-align:right" title="Доля сессий с этой страницы, дошедших до начала заполнения формы.">Старт % ⓘ</th>
+    <th style="text-align:right" title="Успешно завершённые регистрации (подтверждено появлением экрана «Регистрация завершена»), а не просто клик по кнопке.">Регистраций ⓘ</th>
+    <th style="text-align:right">Конверсия</th>
+  </tr>`;
+  lpTable.appendChild(lpThead);
+  const lpTbody = document.createElement("tbody");
+  const lpSorted = (landingPagesArr || []).slice().sort((a,b) => b.sessions - a.sessions).slice(0, 15);
+  lpSorted.forEach(l => {
+    const tr = document.createElement("tr");
+    const perSession = l.sessions > 0 ? (l.screenPageViews / l.sessions).toFixed(1).replace(".", ",") : "—";
+    const startPct = l.sessions > 0 && l.regStarts ? fmtPct(l.regStarts / l.sessions * 100) : "—";
+    const cr = l.sessions > 0 && l.signUps ? fmtPct(l.signUps / l.sessions * 100) : "—";
+    const cells = [
+      l.name || "/",
+      fmtInt(l.sessions),
+      l.totalUsers ? fmtInt(l.totalUsers) : "—",
+      perSession,
+      l.avgSessionSec ? fmtDur(l.avgSessionSec) : "—",
+      l.bounceRate != null ? fmtPct(l.bounceRate) : "—",
+      l.engagementRate != null ? fmtPct(l.engagementRate) : "—",
+      l.regStarts ? fmtInt(l.regStarts) : "—",
+      startPct,
+      l.signUps ? fmtInt(l.signUps) : "—",
+      cr,
+    ];
+    cells.forEach((c, i) => {
+      const td = document.createElement("td");
+      if (i === 0) {
+        // long paths (e.g. /ru/live/mortal-kombat/1252965-mortal-kombat-x)
+        // wrapped to 3 lines and broke row alignment -- truncate to one line
+        // with an ellipsis instead, full path still available on hover.
+        td.className = "name-cell";
+        td.style.cssText = "white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:200px;";
+        td.title = c;
+      } else {
+        td.className = "num";
+      }
+      td.textContent = c;
+      tr.appendChild(td);
+    });
+    lpTbody.appendChild(tr);
+  });
+  lpTable.appendChild(lpTbody);
+  container.appendChild(lpTable);
+  }
+
+  const nvrBody = collapsibleSection(el, "Новые и вернувшиеся посетители", "кто реально доходит до регистрации — новички или те, кто уже был на сайте — пересчитывается по выбранному периоду");
+  nvrBody.appendChild(nvrCard);
+
+  const techBody = collapsibleSection(el, "Устройства", "браузеры (за весь период) и операционные системы (по выбранному периоду)");
+  const techCard = document.createElement("div"); techCard.className = "card two-col";
+  // Browsers stay full-period -- that dimension was never captured in the
+  // flat rows (only os/country/channel/nvr are), so it can't be recomputed
+  // per period client-side without a backend change.
+  techCard.appendChild(donutBlock("Браузеры", browsers, "sessions"));
+  techCard.appendChild(osCard);
+  techBody.appendChild(techCard);
+
+  // appendix: full events table (collapsed to first 10 rows) -- rebuilt by
+  // renderDynamic on every period/filter change (event detail breakdowns
+  // like "which CTA" stay full-period -- that join was never captured
+  // per-day in the flat tables).
+  const evBody = collapsibleSection(el, "Полный список отслеживаемых событий", deviceLabel + " — пересчитывается по выбранному периоду");
+  evBody.appendChild(evCard);
+
+  function buildEventsTableCard(container, fEvents, fUsersTotal) {
+  container.innerHTML = "";
+  const card2 = document.createElement("div"); card2.className = "card";
+  const table = document.createElement("table"); table.className = "events-table";
+  const thead = document.createElement("thead");
+  thead.innerHTML = `<tr><th>Событие</th><th>Что это значит</th><th style="text-align:right">Срабатываний</th><th style="text-align:right">% пользователей</th></tr>`;
+  table.appendChild(thead);
+  const tbody = document.createElement("tbody");
+  const allNames = KNOWN_EVENT_ORDER.slice().sort((a,b) => {
+    const pa = EVENT_PRIORITY_INDEX.has(a) ? EVENT_PRIORITY_INDEX.get(a) : EVENT_PRIORITY_ORDER.length;
+    const pb = EVENT_PRIORITY_INDEX.has(b) ? EVENT_PRIORITY_INDEX.get(b) : EVENT_PRIORITY_ORDER.length;
+    return pa - pb;
+  });
+  const VISIBLE_ROWS = 10;
+  allNames.forEach((name, idx) => {
+    const info = GLOSSARY[name];
+    const data = fEvents[name];
+    const rawDetail = (eventDetails && eventDetails[name]) || [];
+    const filtered = rawDetail.filter(d => d.value && d.value !== "(пусто)" && d.value !== "(not set)" && d.value !== "(none)");
+    // The site is multi-language (visible tab text is captured as-is), so the
+    // same registration method shows up as a dozen near-duplicate strings —
+    // "By phone", "Por telefono", "از طریق تلفن", etc. Normalize those two
+    // specific "method" breakdowns into one Russian bucket per real method.
+    const detail = (name === "sign_up_method_select" || name === "sign_up_success")
+      ? normalizeMethodDetail(filtered)
+      : (name === "social_footer_click" || name === "login_social_click")
+      ? normalizeSocialDetail(filtered)
+      : (name === "app_download_click")
+      ? normalizePlatformDetail(filtered)
+      : filtered;
+    const hasDetail = detail.length > 0;
+
+    const tr = document.createElement("tr");
+    if (idx >= VISIBLE_ROWS) tr.style.display = "none";
+    tr.classList.add("appendix-row");
+    if (!data || data.count === 0) tr.className += " zero-row";
+    const tdName = document.createElement("td");
+    const nameCell = document.createElement("div"); nameCell.className = "event-name-cell" + (hasDetail ? " expandable" : "");
+    const chevron = document.createElement("span"); chevron.className = "chevron"; chevron.textContent = "▸"; chevron.style.visibility = hasDetail ? "visible" : "hidden";
+    const nameSpan = document.createElement("span"); nameSpan.className = "event-label"; nameSpan.textContent = info.label;
+    nameCell.append(chevron, nameSpan);
+    tdName.appendChild(nameCell);
+    const codeDiv = document.createElement("div"); codeDiv.className = "event-code"; codeDiv.textContent = name;
+    tdName.appendChild(codeDiv);
+    const tdDesc = document.createElement("td"); tdDesc.className = "event-desc"; tdDesc.textContent = info.desc;
+    const tdCount = document.createElement("td"); tdCount.className = "num";
+    tdCount.textContent = data && data.count ? fmtInt(data.count) : "—";
+    if (!data || data.count === 0) {
+      const tag = document.createElement("span"); tag.className = "zero-tag"; tag.textContent = "пока не зафиксировано";
+      tdCount.appendChild(document.createElement("br")); tdCount.appendChild(tag);
+    }
+    const tdPct = document.createElement("td"); tdPct.className = "num";
+    tdPct.textContent = data && data.users && fUsersTotal ? fmtPct(data.users/fUsersTotal*100) : "—";
+    tr.append(tdName, tdDesc, tdCount, tdPct);
+    tbody.appendChild(tr);
+
+    if (hasDetail) {
+      const detailTr = document.createElement("tr"); detailTr.className = "detail-row appendix-row"; detailTr.style.display = "none";
+      if (idx >= VISIBLE_ROWS) detailTr.dataset.hiddenByLimit = "1";
+      const detailTd = document.createElement("td"); detailTd.colSpan = 4;
+      const dl = document.createElement("div"); dl.className = "detail-list";
+      const detailTitle = document.createElement("div"); detailTitle.style.color = "var(--text-muted)"; detailTitle.style.marginBottom = "2px";
+      detailTitle.textContent = info.detailLabel || "Детали";
+      dl.appendChild(detailTitle);
+      detail.slice(0, 15).forEach(d => {
+        const row = document.createElement("div"); row.className = "drow";
+        const v = document.createElement("span"); v.className = "dval"; v.textContent = d.value;
+        const c = document.createElement("span"); c.className = "dcount"; c.textContent = fmtInt(d.count);
+        row.append(v, c);
+        dl.appendChild(row);
+      });
+      detailTd.appendChild(dl);
+      detailTr.appendChild(detailTd);
+      tbody.appendChild(detailTr);
+      nameCell.addEventListener("click", () => {
+        const open = chevron.classList.toggle("open");
+        detailTr.style.display = open ? "" : "none";
+      });
+    }
+  });
+  table.appendChild(tbody);
+  card2.appendChild(table);
+
+  if (allNames.length > VISIBLE_ROWS) {
+    const btn = document.createElement("button"); btn.className = "show-more-btn";
+    btn.textContent = `Показать все события (${allNames.length})`;
+    btn.addEventListener("click", () => {
+      Array.from(tbody.children).forEach(r => {
+        if (!r.classList.contains("detail-row")) r.style.display = "";
+      });
+      btn.remove();
+    });
+    card2.appendChild(btn);
+  }
+  container.appendChild(card2);
+  }
+}
+
+/* ===================== combine desktop+mobile ===================== */
+function mergeBreakdown(a, b, metricKeys) {
+  const map = new Map();
+  [...(a||[]), ...(b||[])].forEach(row => {
+    if (!map.has(row.name)) map.set(row.name, { name: row.name, ...Object.fromEntries(metricKeys.map(k => [k, 0])) });
+    const acc = map.get(row.name);
+    metricKeys.forEach(k => { acc[k] += row[k] || 0; });
+  });
+  return Array.from(map.values()).sort((x,y) => y[metricKeys[0]] - x[metricKeys[0]]);
+}
+function mergeCountries(a, b) {
+  const map = new Map();
+  [...(a||[]), ...(b||[])].forEach(row => {
+    if (!map.has(row.name)) map.set(row.name, { name: row.name, sessions: 0, totalUsers: 0, signUps: 0, _bounceW: 0, _engW: 0 });
+    const acc = map.get(row.name);
+    acc.sessions += row.sessions; acc.totalUsers += row.totalUsers; acc.signUps += row.signUps || 0;
+    acc._bounceW += (row.sessions||0) * (row.bounceRate||0);
+    acc._engW += (row.sessions||0) * (row.engagementRate||0);
+  });
+  return Array.from(map.values()).map(acc => ({
+    name: acc.name, sessions: acc.sessions, totalUsers: acc.totalUsers, signUps: acc.signUps,
+    signUpRate: acc.sessions ? round2(acc.signUps / acc.sessions * 100) : 0,
+    bounceRate: acc.sessions ? acc._bounceW / acc.sessions : 0,
+    engagementRate: acc.sessions ? acc._engW / acc.sessions : 0,
+  })).sort((x,y) => y.sessions - x.sessions);
+}
+function round2(n) { return Math.round(n * 100) / 100; }
+function mergeBySource(a, b) {
+  const map = new Map();
+  [...(a||[]), ...(b||[])].forEach(row => {
+    map.set(row.source, (map.get(row.source)||0) + row.count);
+  });
+  return Array.from(map.entries()).map(([source, count]) => ({source, count})).sort((x,y) => y.count - x.count);
+}
+function mergeNvr(d, m) {
+  const out = { new: (d?.new||0) + (m?.new||0), returning: (d?.returning||0) + (m?.returning||0), unclassified: (d?.unclassified||0) + (m?.unclassified||0), detail: {} };
+  ["new", "returning", "unclassified"].forEach(key => {
+    const dd = d?.detail?.[key] || {}, md = m?.detail?.[key] || {};
+    const sessions = (dd.sessions||0) + (md.sessions||0);
+    const signUps = (dd.signUps||0) + (md.signUps||0);
+    out.detail[key] = {
+      sessions,
+      totalUsers: (dd.totalUsers||0) + (md.totalUsers||0),
+      bounceRate: sessions ? ((dd.bounceRate||0)*(dd.sessions||0) + (md.bounceRate||0)*(md.sessions||0)) / sessions : 0,
+      engagementRate: sessions ? ((dd.engagementRate||0)*(dd.sessions||0) + (md.engagementRate||0)*(md.sessions||0)) / sessions : 0,
+      avgSessionSec: sessions ? ((dd.avgSessionSec||0)*(dd.sessions||0) + (md.avgSessionSec||0)*(md.sessions||0)) / sessions : 0,
+      regStarts: (dd.regStarts||0) + (md.regStarts||0),
+      signUps,
+      signUpRate: sessions ? round2(signUps / sessions * 100) : 0,
+    };
+  });
+  return out;
+}
+function mergeSources(a, b) {
+  const map = new Map();
+  [...(a||[]), ...(b||[])].forEach(row => {
+    const key = row.channel + "||" + row.name;
+    if (!map.has(key)) map.set(key, { channel: row.channel, name: row.name, sessions: 0, totalUsers: 0, signUps: 0, _bounceW: 0, _engW: 0 });
+    const acc = map.get(key);
+    acc.sessions += row.sessions; acc.totalUsers += row.totalUsers; acc.signUps += row.signUps || 0;
+    acc._bounceW += (row.sessions||0) * (row.bounceRate||0);
+    acc._engW += (row.sessions||0) * (row.engagementRate||0);
+  });
+  return Array.from(map.values()).map(acc => ({
+    channel: acc.channel, name: acc.name, sessions: acc.sessions, totalUsers: acc.totalUsers, signUps: acc.signUps,
+    bounceRate: acc.sessions ? acc._bounceW / acc.sessions : 0,
+    engagementRate: acc.sessions ? acc._engW / acc.sessions : 0,
+  })).sort((x,y) => y.sessions - x.sessions);
+}
+function mergeTrend(a, b) {
+  const map = new Map();
+  [...(a||[]), ...(b||[])].forEach(row => {
+    if (!map.has(row.date)) map.set(row.date, { date: row.date, sessions: 0, totalUsers: 0, screenPageViews: 0 });
+    const acc = map.get(row.date);
+    acc.sessions += row.sessions; acc.totalUsers += row.totalUsers; acc.screenPageViews += row.screenPageViews;
+  });
+  return Array.from(map.values()).sort((x,y) => x.date.localeCompare(y.date));
+}
+function mergeLandingPages(a, b) {
+  // bounceRate/engagementRate/avgSessionSec are ratios, not additive -- an
+  // earlier version of this merge dropped them entirely (map entries never
+  // carried the fields), which silently showed "—" for every row on any
+  // combined (desktop+mobile) tab. Session-weight them properly instead, same
+  // pattern as mergeCountries/mergeSources.
+  const map = new Map();
+  [...(a||[]), ...(b||[])].forEach(row => {
+    if (!map.has(row.name)) map.set(row.name, { name: row.name, sessions: 0, totalUsers: 0, screenPageViews: 0, regStarts: 0, signUps: 0, _bounceW: 0, _engW: 0, _durW: 0 });
+    const acc = map.get(row.name);
+    acc.sessions += row.sessions;
+    acc.totalUsers += row.totalUsers || 0;
+    acc.screenPageViews += row.screenPageViews;
+    acc.regStarts += row.regStarts || 0;
+    acc.signUps += row.signUps || 0;
+    acc._bounceW += (row.sessions||0) * (row.bounceRate||0);
+    acc._engW += (row.sessions||0) * (row.engagementRate||0);
+    acc._durW += (row.sessions||0) * (row.avgSessionSec||0);
+  });
+  return Array.from(map.values()).map(acc => ({
+    name: acc.name, sessions: acc.sessions, totalUsers: acc.totalUsers, screenPageViews: acc.screenPageViews,
+    regStarts: acc.regStarts, signUps: acc.signUps,
+    bounceRate: acc.sessions ? acc._bounceW / acc.sessions : 0,
+    engagementRate: acc.sessions ? acc._engW / acc.sessions : 0,
+    avgSessionSec: acc.sessions ? acc._durW / acc.sessions : 0,
+  })).sort((x,y) => y.sessions - x.sessions);
+}
+function mergeEventDetails(a, b) {
+  const out = {};
+  [a||{}, b||{}].forEach(obj => {
+    Object.entries(obj).forEach(([ev, rows]) => {
+      if (!out[ev]) out[ev] = {};
+      rows.forEach(r => { out[ev][r.value] = (out[ev][r.value]||0) + r.count; });
+    });
+  });
+  const result = {};
+  Object.entries(out).forEach(([ev, valMap]) => {
+    result[ev] = Object.entries(valMap).map(([value,count]) => ({value,count})).sort((x,y)=>y.count-x.count);
+  });
+  return result;
+}
+function combineProps(desktop, mobile) {
+  const totals = {
+    sessions: desktop.totals.sessions + mobile.totals.sessions,
+    totalUsers: desktop.totals.totalUsers + mobile.totals.totalUsers,
+    screenPageViews: desktop.totals.screenPageViews + mobile.totals.screenPageViews,
+    averageSessionDuration: (desktop.totals.averageSessionDuration * desktop.totals.sessions + mobile.totals.averageSessionDuration * mobile.totals.sessions) / Math.max(desktop.totals.sessions + mobile.totals.sessions, 1),
+    bounceRate: (desktop.totals.bounceRate * desktop.totals.sessions + mobile.totals.bounceRate * mobile.totals.sessions) / Math.max(desktop.totals.sessions + mobile.totals.sessions, 1),
+    engagementRate: (desktop.totals.engagementRate * desktop.totals.sessions + mobile.totals.engagementRate * mobile.totals.sessions) / Math.max(desktop.totals.sessions + mobile.totals.sessions, 1),
+  };
+  const events = {};
+  [desktop.events, mobile.events].forEach(evObj => {
+    Object.entries(evObj).forEach(([name, v]) => {
+      if (!events[name]) events[name] = { count: 0, users: 0 };
+      events[name].count += v.count;
+      events[name].users += v.users;
+    });
+  });
+  const avgLoadTime = (desktop.avg_load_time_ms > 0 || mobile.avg_load_time_ms > 0)
+    ? ((desktop.avg_load_time_ms||0) * (desktop.events.page_load_time?.count||0) + (mobile.avg_load_time_ms||0) * (mobile.events.page_load_time?.count||0))
+      / Math.max((desktop.events.page_load_time?.count||0) + (mobile.events.page_load_time?.count||0), 1)
+    : 0;
+  return {
+    totals, events, avg_load_time_ms: avgLoadTime,
+    trend: mergeTrend(desktop.trend, mobile.trend),
+    channels: mergeBreakdown(desktop.channels, mobile.channels, ["sessions", "totalUsers"]),
+    sources: mergeSources(desktop.sources, mobile.sources),
+    countries: mergeCountries(desktop.countries, mobile.countries),
+    browsers: mergeBreakdown(desktop.browsers, mobile.browsers, ["sessions"]),
+    operating_systems: mergeBreakdown(desktop.operating_systems, mobile.operating_systems, ["sessions"]),
+    landing_pages: mergeLandingPages(desktop.landing_pages, mobile.landing_pages),
+    new_vs_returning: mergeNvr(desktop.new_vs_returning, mobile.new_vs_returning),
+    signup_success_by_source: mergeBySource(desktop.signup_success_by_source, mobile.signup_success_by_source),
+    event_details: mergeEventDetails(desktop.event_details, mobile.event_details),
+    filter_session_rows: [...(desktop.filter_session_rows||[]), ...(mobile.filter_session_rows||[])],
+    filter_event_rows: [...(desktop.filter_event_rows||[]), ...(mobile.filter_event_rows||[])],
+    filter_source_rows: [...(desktop.filter_source_rows||[]), ...(mobile.filter_source_rows||[])],
+    filter_landing_rows: [...(desktop.filter_landing_rows||[]), ...(mobile.filter_landing_rows||[])],
+  };
+}
+
+// Lightweight desktop+mobile merge for site-switcher domains (basic metrics
+// only -- no custom events yet, so no funnel/sources/event-details to merge).
+function combineLite(d, m) {
+  const dS = d.totals.sessions, mS = m.totals.sessions, sum = Math.max(dS + mS, 1);
+  return {
+    totals: {
+      sessions: dS + mS,
+      totalUsers: d.totals.totalUsers + m.totals.totalUsers,
+      screenPageViews: d.totals.screenPageViews + m.totals.screenPageViews,
+      averageSessionDuration: (d.totals.averageSessionDuration * dS + m.totals.averageSessionDuration * mS) / sum,
+      bounceRate: (d.totals.bounceRate * dS + m.totals.bounceRate * mS) / sum,
+      engagementRate: (d.totals.engagementRate * dS + m.totals.engagementRate * mS) / sum,
+    },
+    trend: mergeTrend(d.trend, m.trend),
+    channels: mergeBreakdown(d.channels, m.channels, ["sessions", "totalUsers"]),
+    countries: mergeBreakdown(d.countries, m.countries, ["sessions", "totalUsers"]),
+    browsers: mergeBreakdown(d.browsers, m.browsers, ["sessions"]),
+    operating_systems: mergeBreakdown(d.operating_systems, m.operating_systems, ["sessions"]),
+    new_vs_returning: mergeNvr(d.new_vs_returning, m.new_vs_returning),
+  };
+}
+
+// Basic-metrics view for domains that only have GTM/GA4 installed so far,
+// without the full custom event tracking plan (see the site switcher).
+function renderSiteLite(containerId, s, domain) {
+  const el = document.getElementById(containerId);
+  el.innerHTML = "";
+  if (s.error) {
+    const note = document.createElement("div"); note.className = "note-banner small";
+    note.innerHTML = `<b>Не удалось получить данные для ${domain}.</b> ${s.error}`;
+    el.appendChild(note);
+    return;
+  }
+  const note = document.createElement("div"); note.className = "site-lite-note";
+  note.innerHTML = `<span>ℹ️</span><span>На <b>${domain}</b> счётчик GTM/GA4 уже установлен, но детальная разметка событий (регистрация, клики) сюда ещё не перенесена — показаны только базовые метрики GA4.</span>`;
+  el.appendChild(note);
+
+  const kpiGrid = document.createElement("div"); kpiGrid.className = "kpi-grid";
+  kpiGrid.appendChild(kpiTile("Сессии", s.totals.sessions, "sessions"));
+  kpiGrid.appendChild(kpiTile("Пользователи", s.totals.totalUsers, "totalUsers"));
+  kpiGrid.appendChild(kpiTile("Ср. длительность сессии", s.totals.averageSessionDuration, "averageSessionDuration", { format: fmtDur }));
+  kpiGrid.appendChild(kpiTile("Показатель отказов", s.totals.bounceRate, "bounceRate", { format: v => v.toFixed(0) + "%" }));
+  kpiGrid.appendChild(kpiTile("Engagement rate", s.totals.engagementRate, "engagementRate", { format: v => v.toFixed(0) + "%" }));
+  el.appendChild(kpiGrid);
+
+  const trendBody = collapsibleSection(el, "Динамика трафика по дням", "сессии в день");
+  const trendCard = document.createElement("div"); trendCard.className = "card";
+  trendCard.appendChild(buildTrendChart(s.trend || [], "sessions", "Сессии"));
+  trendBody.appendChild(trendCard);
+
+  const chBody = collapsibleSection(el, "Источники трафика", "по каналам");
+  const chCard = document.createElement("div"); chCard.className = "card";
+  const chBars = (s.channels||[]).slice(0, 10).map(c => ({ label: channelLabel(c.name), value: c.sessions, tip: `${fmtInt(c.sessions)} сессий, ${fmtInt(c.totalUsers)} пользователей` }));
+  chCard.appendChild(buildRankedBars(chBars));
+  chBody.appendChild(chCard);
+
+  const geoBody = collapsibleSection(el, "География", "топ-10 стран по сессиям");
+  const geoCard = document.createElement("div"); geoCard.className = "card";
+  const geoBars = (s.countries||[]).slice(0, 10).map(c => ({ label: c.name, value: c.sessions, tip: `${fmtInt(c.sessions)} сессий, ${fmtInt(c.totalUsers)} пользователей` }));
+  geoCard.appendChild(buildRankedBars(geoBars));
+  geoBody.appendChild(geoCard);
+
+  const techBody = collapsibleSection(el, "Устройства", "браузеры и операционные системы");
+  const techCard = document.createElement("div"); techCard.className = "card two-col";
+  techCard.appendChild(donutBlock("Браузеры", s.browsers, "sessions"));
+  techCard.appendChild(donutBlock("Операционные системы", s.operating_systems, "sessions"));
+  techBody.appendChild(techCard);
+}
+
+/* ===================== init ===================== */
+let DEMO_MODE = false;
+let REPORT_DATA = null;
+let CURRENT_SITE = "betwinner.com";
+
+function onPeriodChange() { renderAll(CURRENT_SITE); }
+
+function renderAll(site) {
+  const data = REPORT_DATA;
+  CURRENT_SITE = site;
+  const siteEntry = data.sites ? data.sites[site] : null;
+  const isMain = site === "betwinner.com" || (siteEntry && siteEntry.has_events === true);
+  document.getElementById("device-tabs").style.display = isMain ? "" : "none";
+  document.getElementById("panel-site-lite").style.display = isMain ? "none" : "";
+  document.getElementById("period-picker").style.display = isMain ? "" : "none";
+
+  if (isMain) {
+    // betwinner.com's full data lives at data.properties (legacy/back-compat
+    // key); every other fully-tracked site (has_events===true) lives at
+    // data.sites[site] with the identical desktop/mobile field shape.
+    const desktop = site === "betwinner.com" ? data.properties.desktop : siteEntry.desktop;
+    const mobile = site === "betwinner.com" ? data.properties.mobile : siteEntry.mobile;
+    buildPeriodPicker((desktop.trend || []).map(t => t.date).sort());
+    // renderTab derives every number from filter_session_rows/filter_event_rows
+    // via filterSessionRows/filterEventRows, which already bake in the current
+    // period selection (see inPeriodRange) -- no need to pre-filter p here.
+    const combined = combineProps(desktop, mobile);
+    renderTab("panel-combined", combined, "ПК + Моб суммарно.");
+    renderTab("panel-desktop", desktop, "версия для настольных компьютеров");
+    renderTab("panel-mobile", mobile, "мобильная версия сайта");
+    // restore whichever device tab was active -- visibility is driven ENTIRELY
+    // by the "active" class (.tab-panel{display:none}/.tab-panel.active{display:block}
+    // in CSS); no inline style.display here, or it silently outranks the class
+    // by specificity and never gets cleared (this broke the whole report for
+    // the ПК/Моб tabs before -- content rendered fine, just stayed invisible).
+    const activeBtn = document.querySelector("#device-tabs .tab-btn.active") || document.querySelector("#device-tabs .tab-btn");
+    document.querySelectorAll(".tab-panel").forEach(p => p.classList.remove("active"));
+    document.getElementById("panel-" + activeBtn.dataset.tab).classList.add("active");
+    document.getElementById("report-title").textContent = `${site} — веб-аналитика`;
+    document.getElementById("report-sub").innerHTML = `Обновлено: <b id="generated-at">${new Date(data.generated_at).toLocaleString("ru-RU", { dateStyle: "medium", timeStyle: "short" })}</b> · Источник: GA4${site === "betwinner.com" ? " · дефолт-домен, шаблон для остальных · + все зеркала" : ""}`;
+  } else {
+    // switching to a site-switcher (lite) domain: none of the 3 tab-panels
+    // should show through underneath panel-site-lite.
+    document.querySelectorAll(".tab-panel").forEach(p => p.classList.remove("active"));
+    const siteData = data.sites[site];
+    const lite = siteData.error ? siteData : combineLite(siteData.desktop, siteData.mobile);
+    renderSiteLite("panel-site-lite", siteData.error ? siteData : lite, site);
+    document.getElementById("report-title").textContent = `${site} — веб-аналитика`;
+    document.getElementById("report-sub").innerHTML = `Обновлено: <b>${new Date(data.generated_at).toLocaleString("ru-RU", { dateStyle: "medium", timeStyle: "short" })}</b> · Источник: GA4`;
+  }
+  setTimeout(() => {
+    document.querySelectorAll(".reveal:not(.revealed)").forEach(el => el.classList.add("revealed"));
+  }, 20);
+}
+
+async function initReport() {
+  let data;
+  try {
+    // data.json is a large file (multi-site + per-day granular data) --
+    // can take real time on a slow connection, hence the loading spinner
+    // shown in the HTML by default rather than a silently-blank page.
+    const res = await fetch("data.json", { cache: "no-store" });
+    data = await res.json();
+  } catch (e) {
+    document.getElementById("loading-indicator").innerHTML =
+      `<span>Не удалось загрузить данные отчёта. Проверьте соединение и обновите страницу.<br><small>${e.message || e}</small></span>`;
+    return;
+  }
+  REPORT_DATA = data;
+  document.getElementById("generated-at").textContent = new Date(data.generated_at).toLocaleString("ru-RU", { dateStyle: "medium", timeStyle: "short" });
+  DEMO_MODE = !!data.demo_mode;
+
+  // site switcher
+  const siteSelect = document.getElementById("site-switcher");
+  const siteList = data.site_list || ["betwinner.com"];
+  siteSelect.innerHTML = siteList.map(s => `<option value="${s}">${s}</option>`).join("");
+  // ?site=betwinner.ke in the URL deep-links straight to that GEO's report
+  // (used by the report-link column in the status sheet) -- falls back to
+  // the default domain if the param is missing or names an unknown site.
+  const requestedSite = new URLSearchParams(location.search).get("site");
+  const initialSite = requestedSite && siteList.includes(requestedSite) ? requestedSite : "betwinner.com";
+  siteSelect.value = initialSite;
+  siteSelect.addEventListener("change", () => renderAll(siteSelect.value));
+
+  renderAll(initialSite);
+
+  document.getElementById("loading-indicator").style.display = "none";
+  document.getElementById("device-tabs").style.display = "";
+}
+
+/* ===================== tabs ===================== */
+document.querySelectorAll(".tab-btn").forEach(btn => {
+  btn.addEventListener("click", () => {
+    document.querySelectorAll(".tab-btn").forEach(b => b.classList.remove("active"));
+    document.querySelectorAll(".tab-panel").forEach(p => p.classList.remove("active"));
+    btn.classList.add("active");
+    document.getElementById("panel-" + btn.dataset.tab).classList.add("active");
+  });
+});
+
+if (sessionStorage.getItem("bw_unlocked") === "1") initReport();
+</script>
+</body>
+</html>
