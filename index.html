@@ -2732,64 +2732,58 @@ function renderSiteLite(containerId, s, domain) {
 
 /* ===================== init ===================== */
 let DEMO_MODE = false;
-let REPORT_DATA = null;
+let REPORT_INDEX = null;   // {generated_at, domains: [{name, has_events}]}
 let CURRENT_SITE = "betwinner.com";
+const DOMAIN_CACHE = {};   // name -> fetched per-domain JSON, so switching periods/tabs never re-fetches
+
+// data/<domain>.json is fetched lazily and cached -- only the domain(s)
+// actually being viewed cross the network, instead of every domain's data on
+// every page load (the old single data.json approach, before it hit GitHub's
+// 100MB single-file limit).
+async function fetchDomain(name) {
+  if (DOMAIN_CACHE[name]) return DOMAIN_CACHE[name];
+  const res = await fetch(`data/${encodeURIComponent(name)}.json`, { cache: "no-store" });
+  const json = await res.json();
+  DOMAIN_CACHE[name] = json;
+  return json;
+}
 
 function onPeriodChange() { renderAll(CURRENT_SITE); }
 
-// Every domain with the full native-event tracking layer, in the shape
-// combineProps expects ({desktop, mobile}) -- betwinner.com lives at the
-// legacy data.properties key, everything else at data.sites[domain].
-function fullTrackingDomains(data) {
-  const out = [{ name: "betwinner.com", desktop: data.properties.desktop, mobile: data.properties.mobile }];
-  Object.entries(data.sites || {}).forEach(([name, entry]) => {
-    // betwinner.com is also mirrored into data.sites (same has_events=true
-    // flag) for the site-switcher's own use -- skip it here, already added above
-    if (name !== "betwinner.com" && entry && entry.has_events === true) out.push({ name, desktop: entry.desktop, mobile: entry.mobile });
-  });
-  return out;
-}
-
-// combineProps is associative (every field it merges is a sum or a
-// session-weighted average), so the network-wide total is just repeated
-// pairwise combination -- no separate aggregation logic needed.
-function buildFullGeoCombined(data) {
-  const domains = fullTrackingDomains(data);
-  return domains.map(d => combineProps(d.desktop, d.mobile)).reduce((acc, cur) => combineProps(acc, cur));
-}
-
-function renderAll(site) {
-  const data = REPORT_DATA;
+async function renderAll(site) {
   CURRENT_SITE = site;
-  const siteEntry = data.sites ? data.sites[site] : null;
   const isFullGeo = site === "__full_geo__";
-  const isMain = !isFullGeo && (site === "betwinner.com" || (siteEntry && siteEntry.has_events === true));
+  const indexEntry = REPORT_INDEX.domains.find(d => d.name === site);
+  const isMain = !isFullGeo && indexEntry && indexEntry.has_events === true;
   document.getElementById("device-tabs").style.display = isMain ? "" : "none";
   document.getElementById("panel-site-lite").style.display = (isMain || isFullGeo) ? "none" : "";
   document.getElementById("period-picker").style.display = isMain ? "" : "none";
 
   if (isFullGeo) {
     document.querySelectorAll(".tab-panel").forEach(p => p.classList.remove("active"));
-    const domains = fullTrackingDomains(data);
-    const combined = buildFullGeoCombined(data);
+    const fullNames = REPORT_INDEX.domains.filter(d => d.has_events).map(d => d.name);
+    const fetched = await Promise.all(fullNames.map(async name => ({ name, ...(await fetchDomain(name)) })));
+    const domains = fetched.map(d => ({ name: d.name, desktop: d.desktop, mobile: d.mobile }));
+    // combineProps is associative (every field it merges is a sum or a
+    // session-weighted average), so the network-wide total is just repeated
+    // pairwise combination -- no separate aggregation logic needed.
+    const combined = domains.map(d => combineProps(d.desktop, d.mobile)).reduce((acc, cur) => combineProps(acc, cur));
     const panel = document.getElementById("panel-combined");
     renderTab("panel-combined", combined, `Сводно по ${domains.length} рынкам`);
     buildDomainComparisonTable(panel, domains);
     panel.classList.add("active");
     document.getElementById("report-title").textContent = "Full GEO — веб-аналитика по всем рынкам";
-    document.getElementById("report-sub").innerHTML = `Обновлено: <b id="generated-at">${new Date(data.generated_at).toLocaleString("ru-RU", { dateStyle: "medium", timeStyle: "short" })}</b> · Источник: GA4 · ${domains.length} рынков суммарно`;
+    document.getElementById("report-sub").innerHTML = `Обновлено: <b id="generated-at">${new Date(REPORT_INDEX.generated_at).toLocaleString("ru-RU", { dateStyle: "medium", timeStyle: "short" })}</b> · Источник: GA4 · ${domains.length} рынков суммарно`;
     setTimeout(() => {
       document.querySelectorAll(".reveal:not(.revealed)").forEach(el => el.classList.add("revealed"));
     }, 20);
     return;
   }
 
+  const siteData = await fetchDomain(site);
+
   if (isMain) {
-    // betwinner.com's full data lives at data.properties (legacy/back-compat
-    // key); every other fully-tracked site (has_events===true) lives at
-    // data.sites[site] with the identical desktop/mobile field shape.
-    const desktop = site === "betwinner.com" ? data.properties.desktop : siteEntry.desktop;
-    const mobile = site === "betwinner.com" ? data.properties.mobile : siteEntry.mobile;
+    const { desktop, mobile } = siteData;
     buildPeriodPicker((desktop.trend || []).map(t => t.date).sort());
     // renderTab derives every number from filter_session_rows/filter_event_rows
     // via filterSessionRows/filterEventRows, which already bake in the current
@@ -2807,16 +2801,15 @@ function renderAll(site) {
     document.querySelectorAll(".tab-panel").forEach(p => p.classList.remove("active"));
     document.getElementById("panel-" + activeBtn.dataset.tab).classList.add("active");
     document.getElementById("report-title").textContent = `${site} — веб-аналитика`;
-    document.getElementById("report-sub").innerHTML = `Обновлено: <b id="generated-at">${new Date(data.generated_at).toLocaleString("ru-RU", { dateStyle: "medium", timeStyle: "short" })}</b> · Источник: GA4${site === "betwinner.com" ? " · дефолт-домен, шаблон для остальных · + все зеркала" : ""}`;
+    document.getElementById("report-sub").innerHTML = `Обновлено: <b id="generated-at">${new Date(REPORT_INDEX.generated_at).toLocaleString("ru-RU", { dateStyle: "medium", timeStyle: "short" })}</b> · Источник: GA4${site === "betwinner.com" ? " · дефолт-домен, шаблон для остальных · + все зеркала" : ""}`;
   } else {
     // switching to a site-switcher (lite) domain: none of the 3 tab-panels
     // should show through underneath panel-site-lite.
     document.querySelectorAll(".tab-panel").forEach(p => p.classList.remove("active"));
-    const siteData = data.sites[site];
     const lite = siteData.error ? siteData : combineLite(siteData.desktop, siteData.mobile);
     renderSiteLite("panel-site-lite", siteData.error ? siteData : lite, site);
     document.getElementById("report-title").textContent = `${site} — веб-аналитика`;
-    document.getElementById("report-sub").innerHTML = `Обновлено: <b>${new Date(data.generated_at).toLocaleString("ru-RU", { dateStyle: "medium", timeStyle: "short" })}</b> · Источник: GA4`;
+    document.getElementById("report-sub").innerHTML = `Обновлено: <b>${new Date(REPORT_INDEX.generated_at).toLocaleString("ru-RU", { dateStyle: "medium", timeStyle: "short" })}</b> · Источник: GA4`;
   }
   setTimeout(() => {
     document.querySelectorAll(".reveal:not(.revealed)").forEach(el => el.classList.add("revealed"));
@@ -2824,26 +2817,26 @@ function renderAll(site) {
 }
 
 async function initReport() {
-  let data;
+  let index;
   try {
-    // data.json is a large file (multi-site + per-day granular data) --
-    // can take real time on a slow connection, hence the loading spinner
-    // shown in the HTML by default rather than a silently-blank page.
-    const res = await fetch("data.json", { cache: "no-store" });
-    data = await res.json();
+    // data/index.json is a tiny manifest (domain list only) -- the actual
+    // per-domain data files are fetched lazily by renderAll, only for the
+    // domain(s) actually being viewed.
+    const res = await fetch("data/index.json", { cache: "no-store" });
+    index = await res.json();
   } catch (e) {
     document.getElementById("loading-indicator").innerHTML =
       `<span>Не удалось загрузить данные отчёта. Проверьте соединение и обновите страницу.<br><small>${e.message || e}</small></span>`;
     return;
   }
-  REPORT_DATA = data;
-  document.getElementById("generated-at").textContent = new Date(data.generated_at).toLocaleString("ru-RU", { dateStyle: "medium", timeStyle: "short" });
-  DEMO_MODE = !!data.demo_mode;
+  REPORT_INDEX = index;
+  document.getElementById("generated-at").textContent = new Date(index.generated_at).toLocaleString("ru-RU", { dateStyle: "medium", timeStyle: "short" });
+  DEMO_MODE = !!index.demo_mode;
 
   // site switcher -- "Full GEO" is a synthetic aggregate entry, not a real
-  // site_list domain, so it's prepended here rather than coming from data.json
+  // domain, so it's prepended here rather than coming from the index
   const siteSelect = document.getElementById("site-switcher");
-  const siteList = data.site_list || ["betwinner.com"];
+  const siteList = index.domains.map(d => d.name);
   const optionsHtml = [`<option value="__full_geo__">Full GEO (все рынки)</option>`]
     .concat(siteList.map(s => `<option value="${s}">${s}</option>`)).join("");
   siteSelect.innerHTML = optionsHtml;
@@ -2855,7 +2848,7 @@ async function initReport() {
   siteSelect.value = initialSite;
   siteSelect.addEventListener("change", () => renderAll(siteSelect.value));
 
-  renderAll(initialSite);
+  await renderAll(initialSite);
 
   document.getElementById("loading-indicator").style.display = "none";
   document.getElementById("device-tabs").style.display = "";
