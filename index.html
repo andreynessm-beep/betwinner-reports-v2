@@ -555,6 +555,7 @@ const GLOSSARY = {
   sign_up_start:           { label: "Клик по кнопке «Регистрация»",  desc: "Клиент нажал именно кнопку «Регистрация» в шапке сайта. Не считает переходы по прямым ссылкам и рекламе (это часть, а не весь трафик на регистрацию, см. «Зашли на регистрацию»)." },
   sign_up_method_select:   { label: "Выбор способа регистрации",     desc: "Клиент выбрал способ регистрации, например по телефону, почте или через соцсеть. Фиксируется и по клику на вкладке, и по внутреннему техническому сигналу сайта.", detailLabel: "Какой способ" },
   sign_up_success:         { label: "Успешная регистрация",          desc: "Клиент успешно завершил регистрацию. Основной сигнал: собственное техническое JS-событие сайта о завершении регистрации, дополнительно подстраховано появлением экрана «Регистрация завершена» и сменой адреса страницы. Засчитывается один раз за посещение сайта, даже если сработало несколько внутренних сигналов подтверждения.", detailLabel: "Каким способом" },
+  payment_gateway_transition: { label: "Переход в платёжку",         desc: "Клиент на странице пополнения счёта выбрал способ оплаты (кошелёк / платёжная система / криптовалюта) и подтвердил переход к оплате. Ближайший к реальному депозиту сигнал, который можно поймать технически — сам факт зачисления депозита происходит на стороне платёжного провайдера и нам не виден. Не гарантирует завершённую оплату. Засчитывается один раз за сессию.", detailLabel: "Какой способ" },
   nav_click:               { label: "Клик по меню",                  desc: "Клик по пункту главного меню сайта.", detailLabel: "Какой пункт меню" },
   footer_click:            { label: "Клик по ссылке в подвале",      desc: "Клик по одной из обычных ссылок в самом низу сайта.", detailLabel: "Какая ссылка" },
   promo_click:             { label: "Клик по промо-баннеру",         desc: "Клик по одному из рекламных баннеров на главной странице.", detailLabel: "Какой баннер" },
@@ -653,7 +654,7 @@ const KNOWN_EVENT_ORDER = Object.keys(GLOSSARY);
 // engagement clicks, then passive/technical/system events last.
 const EVENT_PRIORITY_ORDER = [
   // core conversion outcomes
-  "sign_up_success", "bet_placed", "deposit_click", "withdraw_click",
+  "sign_up_success", "payment_gateway_transition", "bet_placed", "deposit_click", "withdraw_click",
   // registration funnel steps (leading indicators)
   "reg_form_start", "sign_up_method_select", "reg_submit_click", "reg_full_submit",
   "sign_up_start", "reg_page_view",
@@ -2085,7 +2086,7 @@ function renderTab(containerId, p, deviceLabel) {
     // those ARE inherently per-visit concepts and don't make sense per-user.
     const stepsFrom = fEvents => [
       { name: "__visit", label: "Посетители сайта", value: fTotals.totalUsers, desc: "Все уникальные пользователи за период (с учётом фильтров)." },
-      ...["reg_form_start", "sign_up_success"].map(name => ({
+      ...["reg_form_start", "sign_up_success", "payment_gateway_transition"].map(name => ({
         name, label: GLOSSARY[name].label, value: (fEvents[name] && fEvents[name].users) || 0, desc: GLOSSARY[name].desc,
       })),
     ];
@@ -2131,8 +2132,8 @@ function renderTab(containerId, p, deviceLabel) {
     belowFilterZone.innerHTML = "";
     if (funnelSteps[0].value > 0) {
       const wrap = document.createElement("div"); wrap.className = "funnel-highlight reveal";
-      const t = document.createElement("div"); t.className = "funnel-highlight-title"; t.textContent = "Воронка регистрации";
-      const h = document.createElement("div"); h.className = "funnel-highlight-hint"; h.textContent = "посетитель → начали заполнять форму → успешная регистрация";
+      const t = document.createElement("div"); t.className = "funnel-highlight-title"; t.textContent = "Воронка регистрации и платежа";
+      const h = document.createElement("div"); h.className = "funnel-highlight-hint"; h.textContent = "посетитель → начали заполнять форму → успешная регистрация → переход в платёжку";
       wrap.append(t, h);
 
       if (hasFlat) {
