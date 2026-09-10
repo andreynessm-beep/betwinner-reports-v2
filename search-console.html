@@ -224,23 +224,10 @@ function buildTrendChart(points, key, label, colorVar, fmt) {
   svg.appendChild(line);
 
   const labelEvery = Math.ceil(points.length / 7);
-  const maxIdx = points.reduce((best, p, i) => (p[key] > points[best][key] ? i : best), 0);
   points.forEach((p, i) => {
     const cx = xFor(i), cy = yFor(p[key]);
-    const dot = document.createElementNS(svgNS, "circle");
-    dot.setAttribute("cx", cx); dot.setAttribute("cy", cy); dot.setAttribute("r", "3.5");
-    dot.setAttribute("fill", cssVar(colorVar));
-    dot.setAttribute("stroke", cssVar("--surface-1")); dot.setAttribute("stroke-width", "1.5");
-    svg.appendChild(dot);
 
-    if (i % labelEvery === 0 || i === points.length - 1 || i === maxIdx) {
-      const valLabel = document.createElementNS(svgNS, "text");
-      valLabel.setAttribute("x", cx); valLabel.setAttribute("y", Math.max(cy - 9, 11));
-      valLabel.setAttribute("text-anchor", i === 0 ? "start" : (i === points.length - 1 ? "end" : "middle"));
-      valLabel.setAttribute("class", "trend-value-label");
-      valLabel.textContent = fmt === fmtPct ? fmtPct(p[key]) : fmtCompact(p[key]);
-      svg.appendChild(valLabel);
-
+    if (i % labelEvery === 0 || i === points.length - 1) {
       const t = document.createElementNS(svgNS, "text");
       t.setAttribute("x", cx); t.setAttribute("y", H - 4); t.setAttribute("text-anchor", "middle");
       t.setAttribute("class", "trend-axis-label");
