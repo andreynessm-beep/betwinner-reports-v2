@@ -37,7 +37,7 @@
     background: var(--surface-1); font-size: 14px; font-weight: 600; color: var(--text-primary);
     box-shadow: var(--card-shadow); min-width: 260px; cursor: pointer;
   }
-  .kpi-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 14px; margin-bottom: 22px; }
+  .kpi-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 14px; margin-bottom: 22px; }
   .kpi-card { background: var(--surface-1); border-radius: 14px; padding: 16px 18px; box-shadow: var(--card-shadow); }
   .kpi-label { font-size: 12px; color: var(--text-muted); font-weight: 600; text-transform: uppercase; letter-spacing: .03em; }
   .kpi-value { font-size: 26px; font-weight: 800; margin-top: 6px; letter-spacing: -.01em; }
@@ -46,15 +46,6 @@
   .charts-row { display: grid; grid-template-columns: 1fr 1fr; gap: 18px; }
   @media (max-width: 760px) { .charts-row { grid-template-columns: 1fr; } }
   .chart-title { font-size: 12px; color: var(--text-muted); font-weight: 600; margin-bottom: 8px; }
-  svg.trend { width: 100%; height: 160px; overflow: visible; }
-  .trend-line { fill: none; stroke-width: 2; }
-  .trend-area { opacity: .08; }
-  table { width: 100%; border-collapse: collapse; font-size: 13px; }
-  th { text-align: left; padding: 8px 10px; color: var(--text-muted); font-weight: 600; font-size: 11px; text-transform: uppercase; letter-spacing: .03em; border-bottom: 1px solid var(--grid); cursor: pointer; user-select: none; }
-  th:hover { color: var(--text-primary); }
-  td { padding: 9px 10px; border-bottom: 1px solid var(--grid); }
-  tr:last-child td { border-bottom: none; }
-  td.num, th.num { text-align: right; font-variant-numeric: tabular-nums; }
   .tables-row { display: grid; grid-template-columns: 1fr 1fr; gap: 18px; }
   @media (max-width: 900px) { .tables-row { grid-template-columns: 1fr; } }
   .status-pill { display: inline-block; padding: 3px 9px; border-radius: 999px; font-size: 11px; font-weight: 700; }
@@ -64,6 +55,46 @@
   .empty-state { text-align: center; padding: 60px 20px; color: var(--text-muted); }
   .empty-state .big { font-size: 40px; margin-bottom: 10px; }
   .updated-note { font-size: 12px; color: var(--text-muted); margin-top: 24px; text-align: center; }
+
+  /* ---------- line/trend chart (matches main report) ---------- */
+  .trend-wrap { display: flex; flex-direction: column; }
+  .trend-svg { width: 100%; height: auto; }
+  .trend-axis-label { font-size: 10px; fill: var(--text-muted); }
+  .trend-value-label {
+    font-size: 10.5px; font-weight: 700; fill: var(--text-primary);
+    paint-order: stroke; stroke: var(--surface-1); stroke-width: 3px; stroke-linejoin: round;
+  }
+
+  /* ---------- data table (matches main report) ---------- */
+  table.data-table { width: 100%; border-collapse: collapse; font-size: 13px; }
+  table.data-table th {
+    text-align: left; font-size: 11px; text-transform: uppercase; letter-spacing: .02em;
+    color: var(--text-muted); font-weight: 600; padding: 8px 10px; border-bottom: 1px solid var(--grid);
+    white-space: nowrap;
+  }
+  table.data-table td { padding: 9px 10px; border-bottom: 1px solid var(--grid); vertical-align: top; }
+  table.data-table tr:last-child td { border-bottom: none; }
+  table.data-table .num { text-align: right; font-variant-numeric: tabular-nums; white-space: nowrap; }
+  table.data-table td.name-cell { max-width: 320px; overflow-wrap: anywhere; }
+  table.data-table tbody tr:nth-child(even) td { background: color-mix(in srgb, var(--brand-a) 2.5%, transparent); }
+  table.data-table tbody tr:hover td { background: color-mix(in srgb, var(--brand-a) 6%, transparent); }
+  .show-more-btn {
+    display: inline-block; margin-top: 12px; padding: 7px 14px; font-size: 12px; font-weight: 600;
+    border: 1px solid var(--border); border-radius: 6px; background: var(--page); color: var(--text-primary);
+    cursor: pointer;
+  }
+  .show-more-btn:hover { background: var(--grid); }
+
+  /* ---------- tooltip ---------- */
+  #tt {
+    position: fixed; pointer-events: none; z-index: 200;
+    background: var(--text-primary); color: var(--surface-1);
+    font-size: 12px; line-height: 1.4; padding: 8px 10px; border-radius: 6px;
+    max-width: 260px; box-shadow: 0 4px 16px rgba(0,0,0,0.25);
+    opacity: 0; transform: translateY(4px); transition: opacity .12s, transform .12s;
+  }
+  #tt.show { opacity: 1; transform: translateY(0); }
+  #tt .tt-title { font-weight: 700; margin-bottom: 2px; }
 </style>
 </head>
 <body>
@@ -80,33 +111,196 @@
   <div class="updated-note" id="updated-note"></div>
 </div>
 
+<div id="tt"></div>
+
 <script>
 let DATA = null;
+const VISIBLE_ROWS = 10;
 
-function fmtInt(n) { return Math.round(n).toLocaleString("ru-RU"); }
+/* ===================== formatters (same as main report) ===================== */
+const fmtInt = n => new Intl.NumberFormat("ru-RU").format(Math.round(n));
+const fmtCompact = n => {
+  if (n >= 1e6) return (n / 1e6).toFixed(1).replace(".", ",").replace(",0", "") + "M";
+  if (n >= 1e3) return (n / 1e3).toFixed(1).replace(".", ",").replace(",0", "") + "K";
+  return fmtInt(n);
+};
+const fmtDate = iso => new Date(iso + "T00:00:00").toLocaleDateString("ru-RU", { day: "2-digit", month: "short" });
 function fmtPct(n) { return (n * 100).toFixed(2).replace(".", ",") + "%"; }
 function fmtPos(n) { return n.toFixed(1).replace(".", ","); }
+function cssVar(name) { return getComputedStyle(document.documentElement).getPropertyValue(name).trim(); }
 
-function buildTrendSVG(daily, key, color) {
-  const w = 560, h = 150, pad = 6;
-  if (!daily.length) return '<div class="empty-state" style="padding:30px;">Нет данных за период</div>';
-  const vals = daily.map(d => d[key]);
-  const max = Math.max(...vals, 1);
-  const stepX = (w - pad * 2) / Math.max(daily.length - 1, 1);
-  const pts = daily.map((d, i) => {
-    const x = pad + i * stepX;
-    const y = h - pad - (d[key] / max) * (h - pad * 2);
-    return [x, y];
-  });
-  const line = pts.map((p, i) => (i === 0 ? "M" : "L") + p[0].toFixed(1) + "," + p[1].toFixed(1)).join(" ");
-  const area = line + ` L${pts[pts.length - 1][0].toFixed(1)},${h - pad} L${pts[0][0].toFixed(1)},${h - pad} Z`;
-  return `<svg class="trend" viewBox="0 0 ${w} ${h}" preserveAspectRatio="none">
-    <path class="trend-area" d="${area}" fill="${color}"></path>
-    <path class="trend-line" d="${line}" stroke="${color}"></path>
-  </svg>`;
+/* ===================== tooltip ===================== */
+const ttEl = document.getElementById("tt");
+function showTip(x, y, title, body) {
+  ttEl.innerHTML = "";
+  const t = document.createElement("div"); t.className = "tt-title"; t.textContent = title;
+  ttEl.appendChild(t);
+  if (body) { const b = document.createElement("div"); b.textContent = body; ttEl.appendChild(b); }
+  ttEl.style.left = Math.min(x + 14, window.innerWidth - 280) + "px";
+  ttEl.style.top = (y + 14) + "px";
+  ttEl.classList.add("show");
+}
+function hideTip() { ttEl.classList.remove("show"); }
+
+function niceAxisStep(max, targetTicks) {
+  if (max <= 0) return 1;
+  const raw = max / targetTicks;
+  const mag = Math.pow(10, Math.floor(Math.log10(raw)));
+  const norm = raw / mag;
+  const step = norm < 1.5 ? 1 : norm < 3 ? 2 : norm < 7 ? 5 : 10;
+  return step * mag;
 }
 
-function sitemapStatus(sm) {
+/* ===================== trend chart (same builder as main report) ===================== */
+function buildTrendChart(points, key, label, colorVar, fmt) {
+  fmt = fmt || fmtInt;
+  colorVar = colorVar || "--brand-a";
+  const wrap = document.createElement("div"); wrap.className = "trend-wrap";
+  if (points.length === 0) {
+    wrap.innerHTML = '<div style="padding:30px;text-align:center;color:var(--text-muted);">Нет данных за период</div>';
+    return wrap;
+  }
+  const W = 560, H = 170, padL = 44, padR = 16, padT = 22, padB = 22;
+  const rawMax = Math.max(...points.map(p => p[key]), 0.0001);
+  const axisStep = niceAxisStep(rawMax, 4);
+  const max = Math.ceil(rawMax / axisStep) * axisStep;
+  const xStep = (W - padL - padR) / Math.max(points.length - 1, 1);
+  const yFor = v => padT + (H - padT - padB) * (1 - v / max);
+  const xFor = i => padL + i * xStep;
+
+  const svgNS = "http://www.w3.org/2000/svg";
+  const svg = document.createElementNS(svgNS, "svg");
+  svg.setAttribute("viewBox", `0 0 ${W} ${H}`);
+  svg.classList.add("trend-svg");
+
+  for (let v = 0; v <= max + 0.000001; v += axisStep) {
+    const y = yFor(v);
+    const line = document.createElementNS(svgNS, "line");
+    line.setAttribute("x1", padL); line.setAttribute("x2", W - padR);
+    line.setAttribute("y1", y); line.setAttribute("y2", y);
+    line.setAttribute("stroke", cssVar("--grid")); line.setAttribute("stroke-width", "1");
+    svg.appendChild(line);
+    const axisLabel = document.createElementNS(svgNS, "text");
+    axisLabel.setAttribute("x", padL - 8); axisLabel.setAttribute("y", y + 3);
+    axisLabel.setAttribute("text-anchor", "end");
+    axisLabel.setAttribute("class", "trend-axis-label");
+    axisLabel.textContent = fmt === fmtPct ? fmtPct(v) : fmtCompact(v);
+    svg.appendChild(axisLabel);
+  }
+
+  const gradId = "trendArea" + Math.random().toString(36).slice(2, 7);
+  const defs = document.createElementNS(svgNS, "defs");
+  const grad = document.createElementNS(svgNS, "linearGradient");
+  grad.setAttribute("id", gradId); grad.setAttribute("x1", "0"); grad.setAttribute("y1", "0"); grad.setAttribute("x2", "0"); grad.setAttribute("y2", "1");
+  const gs1 = document.createElementNS(svgNS, "stop"); gs1.setAttribute("offset", "0%"); gs1.setAttribute("stop-color", cssVar(colorVar)); gs1.setAttribute("stop-opacity", "0.32");
+  const gs2 = document.createElementNS(svgNS, "stop"); gs2.setAttribute("offset", "100%"); gs2.setAttribute("stop-color", cssVar(colorVar)); gs2.setAttribute("stop-opacity", "0");
+  grad.append(gs1, gs2); defs.appendChild(grad); svg.appendChild(defs);
+
+  const coords = points.map((p, i) => [xFor(i), yFor(p[key])]);
+  const smoothPath = pts => {
+    if (pts.length < 3) return "M " + pts.map(c => c.join(",")).join(" L ");
+    let d = `M ${pts[0][0]},${pts[0][1]}`;
+    for (let i = 0; i < pts.length - 1; i++) {
+      const p0 = pts[i === 0 ? 0 : i - 1], p1 = pts[i], p2 = pts[i + 1], p3 = pts[i + 2 < pts.length ? i + 2 : i + 1];
+      const c1x = p1[0] + (p2[0] - p0[0]) / 6, c1y = p1[1] + (p2[1] - p0[1]) / 6;
+      const c2x = p2[0] - (p3[0] - p1[0]) / 6, c2y = p2[1] - (p3[1] - p1[1]) / 6;
+      d += ` C ${c1x},${c1y} ${c2x},${c2y} ${p2[0]},${p2[1]}`;
+    }
+    return d;
+  };
+  const smoothD = smoothPath(coords);
+  const area = document.createElementNS(svgNS, "path");
+  area.setAttribute("d", `${smoothD} L ${xFor(points.length - 1)},${yFor(0)} L ${xFor(0)},${yFor(0)} Z`);
+  area.setAttribute("fill", `url(#${gradId})`);
+  svg.appendChild(area);
+
+  const line = document.createElementNS(svgNS, "path");
+  line.setAttribute("d", smoothD);
+  line.setAttribute("fill", "none");
+  line.setAttribute("stroke", cssVar(colorVar));
+  line.setAttribute("stroke-width", "2.5");
+  line.setAttribute("stroke-linejoin", "round");
+  line.setAttribute("stroke-linecap", "round");
+  svg.appendChild(line);
+
+  const labelEvery = Math.ceil(points.length / 7);
+  const maxIdx = points.reduce((best, p, i) => (p[key] > points[best][key] ? i : best), 0);
+  points.forEach((p, i) => {
+    const cx = xFor(i), cy = yFor(p[key]);
+    const dot = document.createElementNS(svgNS, "circle");
+    dot.setAttribute("cx", cx); dot.setAttribute("cy", cy); dot.setAttribute("r", "3.5");
+    dot.setAttribute("fill", cssVar(colorVar));
+    dot.setAttribute("stroke", cssVar("--surface-1")); dot.setAttribute("stroke-width", "1.5");
+    svg.appendChild(dot);
+
+    if (i % labelEvery === 0 || i === points.length - 1 || i === maxIdx) {
+      const valLabel = document.createElementNS(svgNS, "text");
+      valLabel.setAttribute("x", cx); valLabel.setAttribute("y", Math.max(cy - 9, 11));
+      valLabel.setAttribute("text-anchor", i === 0 ? "start" : (i === points.length - 1 ? "end" : "middle"));
+      valLabel.setAttribute("class", "trend-value-label");
+      valLabel.textContent = fmt === fmtPct ? fmtPct(p[key]) : fmtCompact(p[key]);
+      svg.appendChild(valLabel);
+
+      const t = document.createElementNS(svgNS, "text");
+      t.setAttribute("x", cx); t.setAttribute("y", H - 4); t.setAttribute("text-anchor", "middle");
+      t.setAttribute("class", "trend-axis-label");
+      t.textContent = fmtDate(p.date);
+      svg.appendChild(t);
+    }
+
+    const hit = document.createElementNS(svgNS, "circle");
+    hit.setAttribute("cx", cx); hit.setAttribute("cy", cy); hit.setAttribute("r", "13");
+    hit.setAttribute("fill", "transparent"); hit.style.cursor = "default";
+    const bodyText = fmt === fmtPct ? fmtPct(p[key]) : (fmt === fmtPos ? fmtPos(p[key]) : fmtInt(p[key]));
+    hit.addEventListener("pointermove", ev => showTip(ev.clientX, ev.clientY, fmtDate(p.date), `${label}: ${bodyText}`));
+    hit.addEventListener("pointerleave", hideTip);
+    svg.appendChild(hit);
+  });
+
+  wrap.appendChild(svg);
+  return wrap;
+}
+
+/* ===================== table with top-10 + show-more ===================== */
+function buildExpandableTable(headers, rows, alignRightFrom) {
+  const wrap = document.createElement("div");
+  const table = document.createElement("table"); table.className = "data-table";
+  const thead = document.createElement("thead"); const trh = document.createElement("tr");
+  headers.forEach((h, i) => {
+    const th = document.createElement("th"); th.textContent = h;
+    if (alignRightFrom !== undefined && i >= alignRightFrom) th.style.textAlign = "right";
+    trh.appendChild(th);
+  });
+  thead.appendChild(trh); table.appendChild(thead);
+  const tbody = document.createElement("tbody");
+  rows.forEach((cells, ri) => {
+    const tr = document.createElement("tr");
+    if (ri >= VISIBLE_ROWS) tr.style.display = "none";
+    cells.forEach((c, i) => {
+      const td = document.createElement("td");
+      if (i === 0) td.className = "name-cell";
+      if (alignRightFrom !== undefined && i >= alignRightFrom) td.className = "num";
+      if (typeof c === "string" && c.indexOf("<") === 0) td.innerHTML = c; else td.textContent = c;
+      tr.appendChild(td);
+    });
+    tbody.appendChild(tr);
+  });
+  table.appendChild(tbody);
+  wrap.appendChild(table);
+
+  if (rows.length > VISIBLE_ROWS) {
+    const btn = document.createElement("button"); btn.className = "show-more-btn";
+    btn.textContent = `Показать все (${rows.length})`;
+    btn.addEventListener("click", () => {
+      Array.from(tbody.children).forEach(r => { r.style.display = ""; });
+      btn.remove();
+    });
+    wrap.appendChild(btn);
+  }
+  return wrap;
+}
+
+function sitemapStatusPill(sm) {
   if (sm.errors > 0) return `<span class="status-pill status-err">${sm.errors} ошибок</span>`;
   if (sm.warnings > 0) return `<span class="status-pill status-warn">${sm.warnings} warnings</span>`;
   return `<span class="status-pill status-ok">OK</span>`;
@@ -115,6 +309,7 @@ function sitemapStatus(sm) {
 function renderDomain(domain) {
   const d = DATA.domains[domain];
   const content = document.getElementById("content");
+  content.innerHTML = "";
   if (!d || !d.daily || d.daily.length === 0) {
     content.innerHTML = `<div class="card"><div class="empty-state"><div class="big">🔒</div>
       Нет данных Search Console для <b>${domain}</b> — либо нет доступа (verification pending),
@@ -123,47 +318,68 @@ function renderDomain(domain) {
   }
 
   const t = d.totals;
-  content.innerHTML = `
-    <div class="kpi-grid">
-      <div class="kpi-card"><div class="kpi-label">Клики (91 день)</div><div class="kpi-value">${fmtInt(t.clicks)}</div></div>
-      <div class="kpi-card"><div class="kpi-label">Показы (91 день)</div><div class="kpi-value">${fmtInt(t.impressions)}</div></div>
-      <div class="kpi-card"><div class="kpi-label">Средний CTR</div><div class="kpi-value">${fmtPct(t.ctr)}</div></div>
-      <div class="kpi-card"><div class="kpi-label">Средняя позиция</div><div class="kpi-value">${fmtPos(t.position)}</div></div>
-    </div>
+  const peakDay = d.daily.reduce((best, p) => (p.clicks > best.clicks ? p : best), d.daily[0]);
+  const sitemapsOk = d.sitemaps.filter(sm => sm.errors === 0).length;
 
-    <div class="card">
-      <h2>Динамика по дням</h2>
-      <div class="charts-row">
-        <div>
-          <div class="chart-title">Клики</div>
-          ${buildTrendSVG(d.daily, "clicks", "var(--series-1)")}
-        </div>
-        <div>
-          <div class="chart-title">Показы</div>
-          ${buildTrendSVG(d.daily, "impressions", "var(--series-3)")}
-        </div>
-      </div>
-    </div>
-
-    <div class="tables-row">
-      <div class="card">
-        <h2>Топ запросов</h2>
-        <table><thead><tr><th>Запрос</th><th class="num">Клики</th><th class="num">CTR</th></tr></thead>
-        <tbody>${d.top_queries.map(q => `<tr><td>${q.query}</td><td class="num">${fmtInt(q.clicks)}</td><td class="num">${fmtPct(q.ctr)}</td></tr>`).join("")}</tbody></table>
-      </div>
-      <div class="card">
-        <h2>Топ страниц</h2>
-        <table><thead><tr><th>Страница</th><th class="num">Клики</th><th class="num">CTR</th></tr></thead>
-        <tbody>${d.top_pages.map(p => `<tr><td>${p.page.replace(/^https?:\/\/[^/]+/, "")}</td><td class="num">${fmtInt(p.clicks)}</td><td class="num">${fmtPct(p.ctr)}</td></tr>`).join("")}</tbody></table>
-      </div>
-    </div>
-
-    <div class="card">
-      <h2>Sitemaps</h2>
-      <table><thead><tr><th>Путь</th><th>Статус</th><th>Последнее чтение</th></tr></thead>
-      <tbody>${d.sitemaps.length ? d.sitemaps.map(sm => `<tr><td>${sm.path}</td><td>${sitemapStatus(sm)}</td><td>${sm.lastDownloaded ? new Date(sm.lastDownloaded).toLocaleDateString("ru-RU") : "—"}</td></tr>`).join("") : '<tr><td colspan="3" style="color:var(--text-muted);">Sitemap не подан</td></tr>'}</tbody></table>
-    </div>
+  const kpiGrid = document.createElement("div"); kpiGrid.className = "kpi-grid";
+  kpiGrid.innerHTML = `
+    <div class="kpi-card"><div class="kpi-label">Клики (91 день)</div><div class="kpi-value">${fmtInt(t.clicks)}</div></div>
+    <div class="kpi-card"><div class="kpi-label">Показы (91 день)</div><div class="kpi-value">${fmtInt(t.impressions)}</div></div>
+    <div class="kpi-card"><div class="kpi-label">Средний CTR</div><div class="kpi-value">${fmtPct(t.ctr)}</div></div>
+    <div class="kpi-card"><div class="kpi-label">Средняя позиция</div><div class="kpi-value">${fmtPos(t.position)}</div></div>
+    <div class="kpi-card"><div class="kpi-label">Пиковый день</div><div class="kpi-value">${fmtInt(peakDay.clicks)}</div></div>
+    <div class="kpi-card"><div class="kpi-label">Sitemaps без ошибок</div><div class="kpi-value">${sitemapsOk}/${d.sitemaps.length || 0}</div></div>
   `;
+  content.appendChild(kpiGrid);
+
+  const chartsCard = document.createElement("div"); chartsCard.className = "card";
+  chartsCard.innerHTML = `<h2>Динамика по дням</h2>`;
+  const chartsRow = document.createElement("div"); chartsRow.className = "charts-row";
+  const clicksCol = document.createElement("div"); clicksCol.innerHTML = `<div class="chart-title">Клики</div>`;
+  clicksCol.appendChild(buildTrendChart(d.daily, "clicks", "Клики", "--series-1", fmtInt));
+  const impCol = document.createElement("div"); impCol.innerHTML = `<div class="chart-title">Показы</div>`;
+  impCol.appendChild(buildTrendChart(d.daily, "impressions", "Показы", "--series-3", fmtInt));
+  chartsRow.append(clicksCol, impCol);
+  chartsCard.appendChild(chartsRow);
+  content.appendChild(chartsCard);
+
+  const chartsCard2 = document.createElement("div"); chartsCard2.className = "card";
+  chartsCard2.innerHTML = `<h2>CTR и позиция по дням</h2>`;
+  const chartsRow2 = document.createElement("div"); chartsRow2.className = "charts-row";
+  const ctrCol = document.createElement("div"); ctrCol.innerHTML = `<div class="chart-title">CTR</div>`;
+  ctrCol.appendChild(buildTrendChart(d.daily, "ctr", "CTR", "--brand-b", fmtPct));
+  const posCol = document.createElement("div"); posCol.innerHTML = `<div class="chart-title">Средняя позиция</div>`;
+  posCol.appendChild(buildTrendChart(d.daily, "position", "Позиция", "--warning", fmtPos));
+  chartsRow2.append(ctrCol, posCol);
+  chartsCard2.appendChild(chartsRow2);
+  content.appendChild(chartsCard2);
+
+  const tablesRow = document.createElement("div"); tablesRow.className = "tables-row";
+  const qCard = document.createElement("div"); qCard.className = "card"; qCard.innerHTML = `<h2>Топ запросов</h2>`;
+  qCard.appendChild(buildExpandableTable(
+    ["Запрос", "Клики", "CTR"],
+    d.top_queries.map(q => [q.query, fmtInt(q.clicks), fmtPct(q.ctr)]),
+    1
+  ));
+  const pCard = document.createElement("div"); pCard.className = "card"; pCard.innerHTML = `<h2>Топ страниц</h2>`;
+  pCard.appendChild(buildExpandableTable(
+    ["Страница", "Клики", "CTR"],
+    d.top_pages.map(p => [p.page.replace(/^https?:\/\/[^/]+/, ""), fmtInt(p.clicks), fmtPct(p.ctr)]),
+    1
+  ));
+  tablesRow.append(qCard, pCard);
+  content.appendChild(tablesRow);
+
+  const smCard = document.createElement("div"); smCard.className = "card"; smCard.innerHTML = `<h2>Sitemaps${d.sitemaps.length ? " (" + d.sitemaps.length + ")" : ""}</h2>`;
+  if (d.sitemaps.length) {
+    smCard.appendChild(buildExpandableTable(
+      ["Путь", "Статус", "Последнее чтение"],
+      d.sitemaps.map(sm => [sm.path, sitemapStatusPill(sm), sm.lastDownloaded ? new Date(sm.lastDownloaded).toLocaleDateString("ru-RU") : "—"])
+    ));
+  } else {
+    smCard.innerHTML += `<div style="color:var(--text-muted);font-size:13px;">Sitemap не подан</div>`;
+  }
+  content.appendChild(smCard);
 }
 
 async function init() {
