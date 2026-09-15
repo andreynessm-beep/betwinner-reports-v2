@@ -2744,8 +2744,10 @@ const DOMAIN_CACHE = {};   // name -> fetched per-domain JSON, so switching peri
 // 100MB single-file limit).
 async function fetchDomain(name) {
   if (DOMAIN_CACHE[name]) return DOMAIN_CACHE[name];
-  const res = await fetch(`data/${encodeURIComponent(name)}.json`, { cache: "no-store" });
-  const json = await res.json();
+  const res = await fetch(`data/${encodeURIComponent(name)}.json.gz`, { cache: "no-store" });
+  const decompressed = res.body.pipeThrough(new DecompressionStream("gzip"));
+  const text = await new Response(decompressed).text();
+  const json = JSON.parse(text);
   DOMAIN_CACHE[name] = json;
   return json;
 }
