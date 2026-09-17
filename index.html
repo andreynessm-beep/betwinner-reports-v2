@@ -2907,9 +2907,12 @@ function combinePlatforms(data) {
       streamMap[label] = { ...s, stream_name: label, platform: p.label };
     });
     (p.trend || []).forEach(t => {
-      trendByDate[t.date] = trendByDate[t.date] || { date: t.date, active_users: 0, event_count: 0 };
+      trendByDate[t.date] = trendByDate[t.date] || { date: t.date, active_users: 0, event_count: 0, key_events: {} };
       trendByDate[t.date].active_users += t.active_users;
       trendByDate[t.date].event_count += t.event_count;
+      Object.keys(EVENT_GLOSSARY).forEach(ev => {
+        trendByDate[t.date].key_events[ev] = (trendByDate[t.date].key_events[ev] || 0) + ((t.key_events && t.key_events[ev]) || 0);
+      });
     });
   });
   return {
@@ -2966,31 +2969,48 @@ function renderMobileAppContent(content, data) {
   kpiWrap.appendChild(kpiTile("Депозитов (dep_done)", depCount, "completionRate"));
   content.appendChild(kpiWrap);
 
-  // daily trend charts -- two metrics side by side, same layout as the
-  // КОНСОЛЬ tab's "Динамика по дням" card (one card, .two-col row, each
-  // column with its own small title + buildTrendChart). Will fill in as
-  // more days accumulate past the 17.09.2026 migration date; buildTrendChart
-  // already handles the 0/1/N point cases gracefully (hero number for a
-  // single day, real line once there's more).
-  const trendCard = document.createElement("div");
-  trendCard.className = "card reveal";
-  trendCard.style.marginBottom = "16px";
-  const trendCardTitle = document.createElement("div");
-  trendCardTitle.style.cssText = "font-size:14px;font-weight:700;margin-bottom:14px;";
-  trendCardTitle.textContent = "Динамика по дням";
-  trendCard.appendChild(trendCardTitle);
-  const trendRow = document.createElement("div");
-  trendRow.className = "two-col";
-  const trendPoints = p.trend.map(t => ({ date: t.date, active_users: t.active_users, event_count: t.event_count }));
-  const usersCol = document.createElement("div");
-  usersCol.innerHTML = `<div style="font-size:12px;color:var(--text-secondary);font-weight:600;margin-bottom:8px;">Активные пользователи</div>`;
-  usersCol.appendChild(buildTrendChart(trendPoints, "active_users", "Активные пользователи", "--series-1"));
-  const eventsCol = document.createElement("div");
-  eventsCol.innerHTML = `<div style="font-size:12px;color:var(--text-secondary);font-weight:600;margin-bottom:8px;">События</div>`;
-  eventsCol.appendChild(buildTrendChart(trendPoints, "event_count", "События", "--series-3"));
-  trendRow.append(usersCol, eventsCol);
-  trendCard.appendChild(trendRow);
-  content.appendChild(trendCard);
+  // daily trend charts -- 4 metrics total, 2 cards x 2 columns, same layout
+  // as the КОНСОЛЬ tab's two "Динамика по дням" / "CTR и позиция" cards.
+  // Will fill in as more days accumulate past the 17.09.2026 migration
+  // date; buildTrendChart already handles the 0/1/N point cases gracefully
+  // (hero number for a single day, real line once there's more).
+  function trendMiniChart(titleText, points, key, label, colorVar) {
+    const col = document.createElement("div");
+    col.innerHTML = `<div style="font-size:12px;color:var(--text-secondary);font-weight:600;margin-bottom:8px;">${titleText}</div>`;
+    col.appendChild(buildTrendChart(points, key, label, colorVar));
+    return col;
+  }
+  const trendPoints = p.trend.map(t => ({
+    date: t.date, active_users: t.active_users, event_count: t.event_count,
+    dep_done: (t.key_events && t.key_events.dep_done) || 0,
+    reg_total: ((t.key_events && t.key_events.reg_done) || 0) + ((t.key_events && t.key_events.registration) || 0),
+  }));
+
+  const trendCard1 = document.createElement("div");
+  trendCard1.className = "card reveal";
+  trendCard1.style.marginBottom = "16px";
+  trendCard1.innerHTML = `<div style="font-size:14px;font-weight:700;margin-bottom:14px;">Динамика по дням — активность</div>`;
+  const trendRow1 = document.createElement("div");
+  trendRow1.className = "two-col";
+  trendRow1.append(
+    trendMiniChart("Активные пользователи", trendPoints, "active_users", "Активные пользователи", "--series-1"),
+    trendMiniChart("События", trendPoints, "event_count", "События", "--series-3"),
+  );
+  trendCard1.appendChild(trendRow1);
+  content.appendChild(trendCard1);
+
+  const trendCard2 = document.createElement("div");
+  trendCard2.className = "card reveal";
+  trendCard2.style.marginBottom = "16px";
+  trendCard2.innerHTML = `<div style="font-size:14px;font-weight:700;margin-bottom:14px;">Динамика по дням — ключевые события</div>`;
+  const trendRow2 = document.createElement("div");
+  trendRow2.className = "two-col";
+  trendRow2.append(
+    trendMiniChart("Депозиты (dep_done)", trendPoints, "dep_done", "Депозиты", "--series-5"),
+    trendMiniChart("Регистрации (reg_done + registration)", trendPoints, "reg_total", "Регистрации", "--series-6"),
+  );
+  trendCard2.appendChild(trendRow2);
+  content.appendChild(trendCard2);
 
   // donut charts: platform split (only meaningful in "combined" view, where
   // there are 2 real categories to compare) and key-event composition
@@ -3066,6 +3086,18 @@ function renderMobileAppContent(content, data) {
   table.appendChild(thead);
   const tbody = document.createElement("tbody");
   table.appendChild(tbody);
+  const tfoot = document.createElement("tfoot");
+  const totalRow = document.createElement("tr");
+  totalRow.style.fontWeight = "700";
+  totalRow.style.borderTop = "2px solid var(--border)";
+  const totalUsers = p.streams.reduce((s, x) => s + x.active_users, 0);
+  const totalEvents = p.streams.reduce((s, x) => s + x.event_count, 0);
+  totalRow.innerHTML = `<td>Итого (${p.streams.length})</td>
+    <td style="text-align:right;">${totalUsers.toLocaleString("ru-RU")}</td>
+    <td style="text-align:right;">${totalEvents.toLocaleString("ru-RU")}</td>
+    ${Object.keys(EVENT_GLOSSARY).map(ev => `<td style="text-align:right;">${p.streams.reduce((s, x) => s + (x.key_events[ev] || 0), 0).toLocaleString("ru-RU")}</td>`).join("")}`;
+  tfoot.appendChild(totalRow);
+  table.appendChild(tfoot);
   tableCard.appendChild(table);
   const showMoreWrap = document.createElement("div");
   showMoreWrap.style.cssText = "text-align:center;margin-top:12px;";
