@@ -507,6 +507,7 @@
   <div class="tab-panel" id="panel-desktop"></div>
   <div class="tab-panel" id="panel-mobile"></div>
   <div id="panel-site-lite" style="display:none;"></div>
+  <div id="panel-mobile-app" style="display:none;"></div>
 </div>
 
 <div id="tt"></div>
@@ -2754,14 +2755,99 @@ async function fetchDomain(name) {
 
 function onPeriodChange() { renderAll(CURRENT_SITE); }
 
+let MOBILE_APP_DATA = null;
+async function fetchMobileApp() {
+  if (MOBILE_APP_DATA) return MOBILE_APP_DATA;
+  const res = await fetch("data/mobile-app.json", { cache: "no-store" });
+  MOBILE_APP_DATA = await res.json();
+  return MOBILE_APP_DATA;
+}
+
+const KEY_EVENT_LABELS = {
+  dep_done: "Депозит",
+  withdraw_call: "Вывод",
+  login_done: "Логин",
+  bet_done: "Ставка",
+  reg_done: "Рег. (native)",
+  registration: "Рег. (событие)",
+};
+
+function renderMobileApp(panel, data) {
+  panel.innerHTML = "";
+
+  const totalsWrap = document.createElement("div");
+  totalsWrap.className = "card reveal";
+  totalsWrap.style.marginBottom = "16px";
+  const platformKeys = Object.keys(data.platforms);
+  totalsWrap.innerHTML = `<div style="font-size:13px;color:var(--text-secondary);margin-bottom:10px;font-weight:600;">Firebase / GA4 mobile apps — сводка за период (с даты миграции 17.09.2026)</div>
+    <div style="display:flex;gap:24px;flex-wrap:wrap;">
+      ${platformKeys.map(k => {
+        const p = data.platforms[k];
+        return `<div style="min-width:180px;">
+          <div style="font-size:12px;color:var(--text-secondary);">${p.label} (property ${p.property_id})</div>
+          <div style="font-size:24px;font-weight:700;">${p.totals.active_users.toLocaleString("ru-RU")}</div>
+          <div style="font-size:12px;color:var(--text-secondary);">активных пользователей · ${p.totals.event_count.toLocaleString("ru-RU")} событий · ${p.totals.new_users.toLocaleString("ru-RU")} новых</div>
+        </div>`;
+      }).join("")}
+    </div>`;
+  panel.appendChild(totalsWrap);
+
+  platformKeys.forEach(k => {
+    const p = data.platforms[k];
+    const wrap = document.createElement("div");
+    wrap.className = "card reveal";
+    wrap.style.marginBottom = "16px";
+    const title = document.createElement("div");
+    title.style.cssText = "font-size:13px;color:var(--text-secondary);margin-bottom:10px;font-weight:600;";
+    title.textContent = `${p.label} — по GEO-потокам (${p.streams.length})`;
+    wrap.appendChild(title);
+
+    const table = document.createElement("table");
+    table.className = "events-table";
+    const cols = ["GEO / Stream", "Пользователи", "События", ...Object.values(KEY_EVENT_LABELS)];
+    table.innerHTML = `<thead><tr>${cols.map((c, i) => `<th style="text-align:${i < 3 ? (i === 0 ? "left" : "right") : "right"};">${c}</th>`).join("")}</tr></thead>`;
+    const tbody = document.createElement("tbody");
+    p.streams.forEach(s => {
+      const tr = document.createElement("tr");
+      tr.innerHTML = `<td>${s.stream_name}</td>
+        <td style="text-align:right;">${s.active_users.toLocaleString("ru-RU")}</td>
+        <td style="text-align:right;">${s.event_count.toLocaleString("ru-RU")}</td>
+        ${Object.keys(KEY_EVENT_LABELS).map(ev => `<td style="text-align:right;">${(s.key_events[ev] || 0).toLocaleString("ru-RU")}</td>`).join("")}`;
+      tbody.appendChild(tr);
+    });
+    table.appendChild(tbody);
+    wrap.appendChild(table);
+    panel.appendChild(wrap);
+  });
+
+  const note = document.createElement("div");
+  note.style.cssText = "font-size:12px;color:var(--text-secondary);margin-top:4px;";
+  note.textContent = "GEO определяется по названию Firebase-стрима (наша собственная разметка), не по GA4 IP-геолокации — последняя показывала явно недостоверные страны (VPN/прокси-трафик) и была исключена из отчёта.";
+  panel.appendChild(note);
+}
+
 async function renderAll(site) {
   CURRENT_SITE = site;
+  const isMobileApp = site === "__mobile_app__";
   const isFullGeo = site === "__full_geo__";
   const indexEntry = REPORT_INDEX.domains.find(d => d.name === site);
-  const isMain = !isFullGeo && indexEntry && indexEntry.has_events === true;
+  const isMain = !isFullGeo && !isMobileApp && indexEntry && indexEntry.has_events === true;
   document.getElementById("device-tabs").style.display = isMain ? "" : "none";
-  document.getElementById("panel-site-lite").style.display = (isMain || isFullGeo) ? "none" : "";
+  document.getElementById("panel-site-lite").style.display = (isMain || isFullGeo || isMobileApp) ? "none" : "";
   document.getElementById("period-picker").style.display = isMain ? "" : "none";
+  document.getElementById("panel-mobile-app").style.display = isMobileApp ? "" : "none";
+
+  if (isMobileApp) {
+    document.querySelectorAll(".tab-panel").forEach(p => p.classList.remove("active"));
+    const data = await fetchMobileApp();
+    renderMobileApp(document.getElementById("panel-mobile-app"), data);
+    document.getElementById("report-title").textContent = "Mobile App (Firebase/GA4) — Android + iOS";
+    document.getElementById("report-sub").innerHTML = `Обновлено: <b>${new Date(data.generated_at).toLocaleString("ru-RU", { dateStyle: "medium", timeStyle: "short" })}</b> · Источник: Firebase → GA4 · данные с 17.09.2026 (миграция на новые property)`;
+    setTimeout(() => {
+      document.querySelectorAll(".reveal:not(.revealed)").forEach(el => el.classList.add("revealed"));
+    }, 20);
+    return;
+  }
 
   if (isFullGeo) {
     document.querySelectorAll(".tab-panel").forEach(p => p.classList.remove("active"));
@@ -2841,7 +2927,10 @@ async function initReport() {
   // domain, so it's prepended here rather than coming from the index
   const siteSelect = document.getElementById("site-switcher");
   const siteList = index.domains.map(d => d.name);
-  const optionsHtml = [`<option value="__full_geo__">Full GEO (все рынки)</option>`]
+  const optionsHtml = [
+      `<option value="__full_geo__">Full GEO (все рынки)</option>`,
+      `<option value="__mobile_app__">📱 Mobile App (Android+iOS)</option>`,
+    ]
     .concat(siteList.map(s => `<option value="${s}">${s}</option>`)).join("");
   siteSelect.innerHTML = optionsHtml;
   // ?site=betwinner.ke in the URL deep-links straight to that GEO's report
