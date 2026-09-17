@@ -3149,7 +3149,18 @@ function renderMobileAppContent(content, data) {
   setTimeout(() => document.querySelectorAll(".reveal:not(.revealed)").forEach(el => el.classList.add("revealed")), 20);
 }
 
+// Guards against a real race: renderAll does network fetches (fetchDomain /
+// Promise.all across up to 13 domains for Full GEO), and a fast double-switch
+// (pick a domain, then Full GEO, before the first fetch lands) lets whichever
+// call happens to finish LAST win -- on a slow/large domain that can be the
+// STALE call, silently re-showing its device-tabs/title/panels over the
+// newer, already-correct Full GEO render. Each call stamps its own
+// generation; after every await, a call whose generation has been
+// superseded by a newer renderAll() just stops instead of touching the DOM.
+let RENDER_GEN = 0;
+
 async function renderAll(site) {
+  const myGen = ++RENDER_GEN;
   CURRENT_SITE = site;
   const isFullGeo = site === "__full_geo__";
   const indexEntry = REPORT_INDEX.domains.find(d => d.name === site);
@@ -3162,6 +3173,7 @@ async function renderAll(site) {
     document.querySelectorAll(".tab-panel").forEach(p => p.classList.remove("active"));
     const fullNames = REPORT_INDEX.domains.filter(d => d.has_events).map(d => d.name);
     const fetched = await Promise.all(fullNames.map(async name => ({ name, ...(await fetchDomain(name)) })));
+    if (myGen !== RENDER_GEN) return; // a newer switch happened while this was fetching -- abandon
     const domains = fetched.map(d => ({ name: d.name, desktop: d.desktop, mobile: d.mobile }));
     // combineProps is associative (every field it merges is a sum or a
     // session-weighted average), so the network-wide total is just repeated
@@ -3180,6 +3192,7 @@ async function renderAll(site) {
   }
 
   const siteData = await fetchDomain(site);
+  if (myGen !== RENDER_GEN) return; // a newer switch happened while this was fetching -- abandon
 
   if (isMain) {
     const { desktop, mobile } = siteData;
