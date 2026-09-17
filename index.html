@@ -484,29 +484,41 @@
     </div>
     <div class="header-controls">
       <select id="site-switcher" class="top-select"></select>
-      <a href="search-console.html" class="top-select" style="text-decoration:none; display:inline-flex; align-items:center;">Search Console →</a>
       <div class="period-badge"><span class="dot"></span><span id="period-label">с 17.08.2026</span></div>
     </div>
   </header>
 
+  <div class="tabs" id="top-level-tabs">
+    <button class="tab-btn toplevel-btn active" data-toplevel="web">ВЕБ</button>
+    <button class="tab-btn toplevel-btn" data-toplevel="console">КОНСОЛЬ</button>
+    <button class="tab-btn toplevel-btn" data-toplevel="app">📱 ПРИЛОЖЕНИЕ</button>
+  </div>
+
   <div id="loading-indicator"><div class="spinner"></div><span>Загружаем данные отчёта…</span></div>
 
-  <div class="period-picker" id="period-picker" style="display:none;">
-    <div class="period-row" id="period-row-months"></div>
-    <div class="period-row" id="period-row-weeks" style="display:none;"></div>
-    <div class="period-row" id="period-row-days" style="display:none;"></div>
+  <div id="view-web">
+    <div class="period-picker" id="period-picker" style="display:none;">
+      <div class="period-row" id="period-row-months"></div>
+      <div class="period-row" id="period-row-weeks" style="display:none;"></div>
+      <div class="period-row" id="period-row-days" style="display:none;"></div>
+    </div>
+
+    <div class="tabs" id="device-tabs" style="display:none;">
+      <button class="tab-btn active" data-tab="combined">Общее</button>
+      <button class="tab-btn" data-tab="desktop">ПК</button>
+      <button class="tab-btn" data-tab="mobile">Моб</button>
+    </div>
+
+    <div class="tab-panel active" id="panel-combined"></div>
+    <div class="tab-panel" id="panel-desktop"></div>
+    <div class="tab-panel" id="panel-mobile"></div>
+    <div id="panel-site-lite" style="display:none;"></div>
   </div>
 
-  <div class="tabs" id="device-tabs" style="display:none;">
-    <button class="tab-btn active" data-tab="combined">Общее</button>
-    <button class="tab-btn" data-tab="desktop">ПК</button>
-    <button class="tab-btn" data-tab="mobile">Моб</button>
+  <div id="view-console" style="display:none;">
+    <iframe id="console-iframe" src="" style="width:100%; height:calc(100vh - 200px); border:0; border-radius:14px; background:var(--surface-1);"></iframe>
   </div>
 
-  <div class="tab-panel active" id="panel-combined"></div>
-  <div class="tab-panel" id="panel-desktop"></div>
-  <div class="tab-panel" id="panel-mobile"></div>
-  <div id="panel-site-lite" style="display:none;"></div>
   <div id="panel-mobile-app" style="display:none;"></div>
 </div>
 
@@ -2772,82 +2784,218 @@ const KEY_EVENT_LABELS = {
   registration: "Рег. (событие)",
 };
 
+function combinePlatforms(data) {
+  const keys = Object.keys(data.platforms);
+  const totals = { active_users: 0, event_count: 0, new_users: 0 };
+  const key_events_total = {};
+  const streamMap = {};
+  const trendByDate = {};
+  keys.forEach(k => {
+    const p = data.platforms[k];
+    totals.active_users += p.totals.active_users;
+    totals.event_count += p.totals.event_count;
+    totals.new_users += p.totals.new_users;
+    Object.keys(KEY_EVENT_LABELS).forEach(ev => { key_events_total[ev] = (key_events_total[ev] || 0) + (p.key_events_total[ev] || 0); });
+    p.streams.forEach(s => {
+      const label = `${s.stream_name} (${p.label})`;
+      streamMap[label] = { ...s, stream_name: label, platform: p.label };
+    });
+    (p.trend || []).forEach(t => {
+      trendByDate[t.date] = trendByDate[t.date] || { date: t.date, active_users: 0, event_count: 0 };
+      trendByDate[t.date].active_users += t.active_users;
+      trendByDate[t.date].event_count += t.event_count;
+    });
+  });
+  return {
+    label: "Общее (Android+iOS)",
+    totals, key_events_total,
+    streams: Object.values(streamMap).sort((a, b) => b.active_users - a.active_users),
+    trend: Object.values(trendByDate).sort((a, b) => a.date.localeCompare(b.date)),
+  };
+}
+
+let MOBILE_APP_PLATFORM = "combined";
+
 function renderMobileApp(panel, data) {
   panel.innerHTML = "";
 
-  const totalsWrap = document.createElement("div");
-  totalsWrap.className = "card reveal";
-  totalsWrap.style.marginBottom = "16px";
+  // platform switcher: Общее / Android / iOS -- same sub-tab visual language
+  // as the ВЕБ tab's Общее/ПК/Моб, so the two feel like one report
   const platformKeys = Object.keys(data.platforms);
-  totalsWrap.innerHTML = `<div style="font-size:13px;color:var(--text-secondary);margin-bottom:10px;font-weight:600;">Firebase / GA4 mobile apps — сводка за период (с даты миграции 17.09.2026)</div>
-    <div style="display:flex;gap:24px;flex-wrap:wrap;">
-      ${platformKeys.map(k => {
-        const p = data.platforms[k];
-        return `<div style="min-width:180px;">
-          <div style="font-size:12px;color:var(--text-secondary);">${p.label} (property ${p.property_id})</div>
-          <div style="font-size:24px;font-weight:700;">${p.totals.active_users.toLocaleString("ru-RU")}</div>
-          <div style="font-size:12px;color:var(--text-secondary);">активных пользователей · ${p.totals.event_count.toLocaleString("ru-RU")} событий · ${p.totals.new_users.toLocaleString("ru-RU")} новых</div>
-        </div>`;
-      }).join("")}
-    </div>`;
-  panel.appendChild(totalsWrap);
+  const switcher = document.createElement("div");
+  switcher.className = "tabs";
+  switcher.style.marginBottom = "16px";
+  const options = [{ key: "combined", label: "Общее" }, ...platformKeys.map(k => ({ key: k, label: data.platforms[k].label }))];
+  switcher.innerHTML = options.map(o => `<button class="tab-btn${MOBILE_APP_PLATFORM === o.key ? " active" : ""}" data-mobile-platform="${o.key}">${o.label}</button>`).join("");
+  panel.appendChild(switcher);
 
-  platformKeys.forEach(k => {
-    const p = data.platforms[k];
-    const wrap = document.createElement("div");
-    wrap.className = "card reveal";
-    wrap.style.marginBottom = "16px";
-    const title = document.createElement("div");
-    title.style.cssText = "font-size:13px;color:var(--text-secondary);margin-bottom:10px;font-weight:600;";
-    title.textContent = `${p.label} — по GEO-потокам (${p.streams.length})`;
-    wrap.appendChild(title);
+  const content = document.createElement("div");
+  panel.appendChild(content);
 
-    const table = document.createElement("table");
-    table.className = "events-table";
-    const cols = ["GEO / Stream", "Пользователи", "События", ...Object.values(KEY_EVENT_LABELS)];
-    table.innerHTML = `<thead><tr>${cols.map((c, i) => `<th style="text-align:${i < 3 ? (i === 0 ? "left" : "right") : "right"};">${c}</th>`).join("")}</tr></thead>`;
-    const tbody = document.createElement("tbody");
-    p.streams.forEach(s => {
+  switcher.querySelectorAll("button").forEach(btn => {
+    btn.addEventListener("click", () => {
+      MOBILE_APP_PLATFORM = btn.dataset.mobilePlatform;
+      switcher.querySelectorAll("button").forEach(b => b.classList.toggle("active", b === btn));
+      renderMobileAppContent(content, data);
+    });
+  });
+
+  renderMobileAppContent(content, data);
+}
+
+function renderMobileAppContent(content, data) {
+  content.innerHTML = "";
+  const p = MOBILE_APP_PLATFORM === "combined" ? combinePlatforms(data) : data.platforms[MOBILE_APP_PLATFORM];
+
+  // KPI row
+  const kpiWrap = document.createElement("div");
+  kpiWrap.className = "kpi-grid";
+  kpiWrap.style.cssText = "display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:12px;margin-bottom:16px;";
+  kpiWrap.appendChild(kpiTile("Активные пользователи", p.totals.active_users, "totalUsers"));
+  kpiWrap.appendChild(kpiTile("Новые пользователи", p.totals.new_users, "signupRate"));
+  kpiWrap.appendChild(kpiTile("Всего событий", p.totals.event_count, "sessions"));
+  const regTotal = (p.key_events_total.reg_done || 0) + (p.key_events_total.registration || 0);
+  const depCount = p.key_events_total.dep_done || 0;
+  const betCount = p.key_events_total.bet_done || 0;
+  kpiWrap.appendChild(kpiTile("Депозитов (dep_done)", depCount, "completionRate"));
+  content.appendChild(kpiWrap);
+
+  // NOT a real conversion funnel: dep_done/bet_done count ALL active users
+  // today, while reg_done/registration only count users who registered
+  // TODAY specifically (property is brand-new, created 17.09.2026 -- there's
+  // no earlier history to look back at). Comparing "today's new signups" to
+  // "today's deposits from the entire existing user base" as if one flowed
+  // into the other produced a nonsense >100% "conversion" the first time
+  // this was built -- caught by looking at the live number, not assumed.
+  // Shown here as three independent daily volumes instead, with an explicit
+  // note, until enough days accumulate to build real per-user cohort
+  // conversion (needs a user-level join GA4's aggregate event counts can't
+  // give us -- BigQuery Export, paused per go-ahead, would unlock this).
+  const volCard = document.createElement("div");
+  volCard.className = "card reveal";
+  volCard.style.marginBottom = "16px";
+  const volTitle = document.createElement("div");
+  volTitle.style.cssText = "font-size:13px;color:var(--text-secondary);margin-bottom:10px;font-weight:600;";
+  volTitle.textContent = "Объём за сегодня: регистрация / депозит / ставка (НЕ воронка конверсии — см. примечание ниже)";
+  volCard.appendChild(volTitle);
+  volCard.appendChild(buildRankedBars([
+    { label: "Регистрация (reg_done + registration)", value: regTotal, tip: `${regTotal.toLocaleString("ru-RU")} событий регистрации сегодня` },
+    { label: "Депозит (dep_done)", value: depCount, tip: `${depCount.toLocaleString("ru-RU")} депозитов сегодня, от ВСЕХ активных пользователей` },
+    { label: "Ставка (bet_done)", value: betCount, tip: `${betCount.toLocaleString("ru-RU")} ставок сегодня, от ВСЕХ активных пользователей` },
+  ]));
+  const volNote = document.createElement("div");
+  volNote.style.cssText = "font-size:12px;color:var(--text-secondary);margin-top:10px;";
+  volNote.innerHTML = "<b>Это не воронка конверсии.</b> \"Депозит\"/\"Ставка\" считаются по всем активным пользователям сегодня (включая тех, кто зарегистрировался до 17.09.2026 — property только что создан, старой истории регистраций нет), а \"Регистрация\" — только по НОВЫМ регистрациям за сегодня. Это разные группы людей, сравнивать напрямую нельзя. Настоящая когортная конверсия (для тех, кто реально зарегистрировался и затем внёс депозит) появится после подключения BigQuery Export.";
+  volCard.appendChild(volNote);
+  content.appendChild(volCard);
+
+  // daily trend chart -- will fill in as more days accumulate past the
+  // 17.09.2026 migration date; buildTrendChart already handles the 0/1/N
+  // point cases gracefully (hero number for a single day, real line once
+  // there's more)
+  const trendCard = document.createElement("div");
+  trendCard.className = "card reveal";
+  trendCard.style.marginBottom = "16px";
+  const trendTitle = document.createElement("div");
+  trendTitle.style.cssText = "font-size:13px;color:var(--text-secondary);margin-bottom:10px;font-weight:600;";
+  trendTitle.textContent = "Активные пользователи по дням";
+  trendCard.appendChild(trendTitle);
+  trendCard.appendChild(buildTrendChart(p.trend.map(t => ({ date: t.date, active_users: t.active_users })), "active_users", "Активные пользователи", "--series-1"));
+  content.appendChild(trendCard);
+
+  // ranked bars per GEO -- quick visual comparison, same component as the
+  // web report's country/channel breakdowns
+  const barsCard = document.createElement("div");
+  barsCard.className = "card reveal";
+  barsCard.style.marginBottom = "16px";
+  const barsTitle = document.createElement("div");
+  barsTitle.style.cssText = "font-size:13px;color:var(--text-secondary);margin-bottom:10px;font-weight:600;";
+  barsTitle.textContent = "Пользователи по GEO-потокам";
+  barsCard.appendChild(barsTitle);
+  barsCard.appendChild(buildRankedBars(p.streams.map(s => ({ label: s.stream_name, value: s.active_users, tip: `${s.active_users.toLocaleString("ru-RU")} пользователей · ${s.event_count.toLocaleString("ru-RU")} событий` }))));
+  content.appendChild(barsCard);
+
+  // detail table with status dots (--good/--critical, same status colors
+  // used in the Mobile Analytics Google Sheet), sortable like
+  // buildDomainComparisonTable
+  const tableCard = document.createElement("div");
+  tableCard.className = "card reveal";
+  tableCard.style.marginBottom = "16px";
+  const tableTitle = document.createElement("div");
+  tableTitle.style.cssText = "font-size:13px;color:var(--text-secondary);margin-bottom:10px;font-weight:600;";
+  tableTitle.textContent = `По GEO-потокам, детально (${p.streams.length})`;
+  tableCard.appendChild(tableTitle);
+
+  const table = document.createElement("table");
+  table.className = "events-table";
+  const cols = [
+    { key: "stream_name", label: "GEO / Stream", align: "left" },
+    { key: "status", label: "Статус", align: "left" },
+    { key: "active_users", label: "Пользователи", align: "right" },
+    { key: "event_count", label: "События", align: "right" },
+    ...Object.entries(KEY_EVENT_LABELS).map(([k, label]) => ({ key: "ke_" + k, label, align: "right" })),
+  ];
+  let sortKey = "active_users", sortDir = -1;
+  const thead = document.createElement("thead");
+  const headRow = document.createElement("tr");
+  cols.forEach(c => {
+    const th = document.createElement("th");
+    th.style.textAlign = c.align; th.style.cursor = "pointer"; th.style.userSelect = "none";
+    th.textContent = c.label;
+    th.addEventListener("click", () => {
+      if (sortKey === c.key) sortDir = -sortDir; else { sortKey = c.key; sortDir = c.key === "stream_name" ? 1 : -1; }
+      renderRows();
+    });
+    headRow.appendChild(th);
+  });
+  thead.appendChild(headRow);
+  table.appendChild(thead);
+  const tbody = document.createElement("tbody");
+  table.appendChild(tbody);
+  tableCard.appendChild(table);
+  content.appendChild(tableCard);
+
+  function rowValue(s, key) {
+    if (key.startsWith("ke_")) return s.key_events[key.slice(3)] || 0;
+    return s[key];
+  }
+  function renderRows() {
+    tbody.innerHTML = "";
+    const rows = [...p.streams].sort((a, b) => {
+      const va = rowValue(a, sortKey), vb = rowValue(b, sortKey);
+      if (typeof va === "string") return sortDir * va.localeCompare(vb);
+      return sortDir === 1 ? va - vb : vb - va;
+    });
+    rows.forEach(s => {
       const tr = document.createElement("tr");
+      const isActive = s.status === "active";
+      const statusHtml = `<span style="display:inline-flex;align-items:center;gap:6px;"><span style="width:8px;height:8px;border-radius:50%;background:${isActive ? "var(--good)" : "var(--critical)"};display:inline-block;"></span>${isActive ? "Работает" : "Нет трафика"}</span>`;
       tr.innerHTML = `<td>${s.stream_name}</td>
+        <td>${statusHtml}</td>
         <td style="text-align:right;">${s.active_users.toLocaleString("ru-RU")}</td>
         <td style="text-align:right;">${s.event_count.toLocaleString("ru-RU")}</td>
         ${Object.keys(KEY_EVENT_LABELS).map(ev => `<td style="text-align:right;">${(s.key_events[ev] || 0).toLocaleString("ru-RU")}</td>`).join("")}`;
       tbody.appendChild(tr);
     });
-    table.appendChild(tbody);
-    wrap.appendChild(table);
-    panel.appendChild(wrap);
-  });
+  }
+  renderRows();
 
   const note = document.createElement("div");
   note.style.cssText = "font-size:12px;color:var(--text-secondary);margin-top:4px;";
-  note.textContent = "GEO определяется по названию Firebase-стрима (наша собственная разметка), не по GA4 IP-геолокации — последняя показывала явно недостоверные страны (VPN/прокси-трафик) и была исключена из отчёта.";
-  panel.appendChild(note);
+  note.textContent = "GEO определяется по названию Firebase-стрима (наша собственная разметка), не по GA4 IP-геолокации — последняя показывала явно недостоверные страны (VPN/прокси-трафик) и была исключена из отчёта. Данные с 17.09.2026 (дата миграции на новые GA4-property) — тренд по дням будет накапливаться.";
+  content.appendChild(note);
+
+  setTimeout(() => document.querySelectorAll(".reveal:not(.revealed)").forEach(el => el.classList.add("revealed")), 20);
 }
 
 async function renderAll(site) {
   CURRENT_SITE = site;
-  const isMobileApp = site === "__mobile_app__";
   const isFullGeo = site === "__full_geo__";
   const indexEntry = REPORT_INDEX.domains.find(d => d.name === site);
-  const isMain = !isFullGeo && !isMobileApp && indexEntry && indexEntry.has_events === true;
+  const isMain = !isFullGeo && indexEntry && indexEntry.has_events === true;
   document.getElementById("device-tabs").style.display = isMain ? "" : "none";
-  document.getElementById("panel-site-lite").style.display = (isMain || isFullGeo || isMobileApp) ? "none" : "";
+  document.getElementById("panel-site-lite").style.display = (isMain || isFullGeo) ? "none" : "";
   document.getElementById("period-picker").style.display = isMain ? "" : "none";
-  document.getElementById("panel-mobile-app").style.display = isMobileApp ? "" : "none";
-
-  if (isMobileApp) {
-    document.querySelectorAll(".tab-panel").forEach(p => p.classList.remove("active"));
-    const data = await fetchMobileApp();
-    renderMobileApp(document.getElementById("panel-mobile-app"), data);
-    document.getElementById("report-title").textContent = "Mobile App (Firebase/GA4) — Android + iOS";
-    document.getElementById("report-sub").innerHTML = `Обновлено: <b>${new Date(data.generated_at).toLocaleString("ru-RU", { dateStyle: "medium", timeStyle: "short" })}</b> · Источник: Firebase → GA4 · данные с 17.09.2026 (миграция на новые property)`;
-    setTimeout(() => {
-      document.querySelectorAll(".reveal:not(.revealed)").forEach(el => el.classList.add("revealed"));
-    }, 20);
-    return;
-  }
 
   if (isFullGeo) {
     document.querySelectorAll(".tab-panel").forEach(p => p.classList.remove("active"));
@@ -2927,10 +3075,7 @@ async function initReport() {
   // domain, so it's prepended here rather than coming from the index
   const siteSelect = document.getElementById("site-switcher");
   const siteList = index.domains.map(d => d.name);
-  const optionsHtml = [
-      `<option value="__full_geo__">Full GEO (все рынки)</option>`,
-      `<option value="__mobile_app__">📱 Mobile App (Android+iOS)</option>`,
-    ]
+  const optionsHtml = [`<option value="__full_geo__">Full GEO (все рынки)</option>`]
     .concat(siteList.map(s => `<option value="${s}">${s}</option>`)).join("");
   siteSelect.innerHTML = optionsHtml;
   // ?site=betwinner.ke in the URL deep-links straight to that GEO's report
@@ -2948,12 +3093,47 @@ async function initReport() {
 }
 
 /* ===================== tabs ===================== */
-document.querySelectorAll(".tab-btn").forEach(btn => {
+// device-level tabs (Общее/ПК/Моб) — scoped to #device-tabs only, so the
+// top-level (ВЕБ/КОНСОЛЬ/ПРИЛОЖЕНИЕ) buttons below never get caught by this
+// same generic selector (that WAS the bug: both groups shared ".tab-btn",
+// so clicking a top-level tab also stripped "active" off panel-combined
+// etc., and vice versa -- device-tabs is display:none outside "ВЕБ" anyway,
+// but the click handler didn't know that and mutated tab-panels regardless).
+document.querySelectorAll("#device-tabs .tab-btn").forEach(btn => {
   btn.addEventListener("click", () => {
-    document.querySelectorAll(".tab-btn").forEach(b => b.classList.remove("active"));
+    document.querySelectorAll("#device-tabs .tab-btn").forEach(b => b.classList.remove("active"));
     document.querySelectorAll(".tab-panel").forEach(p => p.classList.remove("active"));
     btn.classList.add("active");
     document.getElementById("panel-" + btn.dataset.tab).classList.add("active");
+  });
+});
+
+// top-level tabs (ВЕБ/КОНСОЛЬ/ПРИЛОЖЕНИЕ) -- independent view switcher, one
+// of #view-web / #view-console / #panel-mobile-app visible at a time.
+let CONSOLE_LOADED = false;
+document.querySelectorAll(".toplevel-btn").forEach(btn => {
+  btn.addEventListener("click", async () => {
+    document.querySelectorAll(".toplevel-btn").forEach(b => b.classList.remove("active"));
+    btn.classList.add("active");
+    const view = btn.dataset.toplevel;
+    document.getElementById("view-web").style.display = view === "web" ? "" : "none";
+    document.getElementById("view-console").style.display = view === "console" ? "" : "none";
+    document.getElementById("panel-mobile-app").style.display = view === "app" ? "" : "none";
+    document.getElementById("site-switcher").style.display = view === "web" ? "" : "none";
+
+    if (view === "console" && !CONSOLE_LOADED) {
+      document.getElementById("console-iframe").src = "search-console.html";
+      CONSOLE_LOADED = true;
+    }
+    if (view === "app") {
+      const data = await fetchMobileApp();
+      renderMobileApp(document.getElementById("panel-mobile-app"), data);
+      document.getElementById("report-title").textContent = "Mobile App (Firebase/GA4) — Android + iOS";
+      document.getElementById("report-sub").innerHTML = `Обновлено: <b>${new Date(data.generated_at).toLocaleString("ru-RU", { dateStyle: "medium", timeStyle: "short" })}</b> · Источник: Firebase → GA4 · данные с 17.09.2026 (миграция на новые property)`;
+      setTimeout(() => document.querySelectorAll(".reveal:not(.revealed)").forEach(el => el.classList.add("revealed")), 20);
+    } else if (view === "web") {
+      renderAll(CURRENT_SITE || "__full_geo__");
+    }
   });
 });
 

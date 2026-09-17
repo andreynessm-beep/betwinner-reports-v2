@@ -1,182 +1,200 @@
 {
-  "generated_at": "2026-09-17T12:24:08+00:00",
+  "generated_at": "2026-09-17T12:36:31+00:00",
   "platforms": {
     "android": {
       "label": "Android",
       "property_id": "554723408",
       "totals": {
-        "active_users": 23444,
-        "event_count": 1659159,
-        "new_users": 963
+        "active_users": 27394,
+        "event_count": 2026057,
+        "new_users": 1169
       },
+      "trend": [
+        {
+          "date": "2026-09-17",
+          "active_users": 27394,
+          "event_count": 2026057
+        }
+      ],
       "key_events_total": {
-        "dep_done": 885,
-        "withdraw_call": 1638,
-        "login_done": 102,
-        "bet_done": 11941,
-        "reg_done": 159,
-        "registration": 159
+        "dep_done": 1076,
+        "withdraw_call": 2097,
+        "login_done": 116,
+        "bet_done": 14730,
+        "reg_done": 185,
+        "registration": 185
       },
       "streams": [
         {
           "stream_id": "15795424069",
           "stream_name": "Betwinner",
-          "active_users": 18442,
-          "event_count": 1444971,
+          "active_users": 20199,
+          "event_count": 1648723,
           "key_events": {
-            "dep_done": 516,
-            "withdraw_call": 1595,
+            "dep_done": 569,
+            "withdraw_call": 1744,
             "login_done": 0,
-            "bet_done": 10537,
-            "reg_done": 135,
-            "registration": 135
-          }
+            "bet_done": 11984,
+            "reg_done": 148,
+            "registration": 148
+          },
+          "status": "active"
         },
         {
           "stream_id": "15795339736",
           "stream_name": "BetWinner",
-          "active_users": 3672,
-          "event_count": 74695,
+          "active_users": 4127,
+          "event_count": 86569,
           "key_events": {
             "dep_done": 0,
             "withdraw_call": 0,
-            "login_done": 4,
-            "bet_done": 15,
+            "login_done": 5,
+            "bet_done": 20,
             "reg_done": 0,
             "registration": 0
-          }
+          },
+          "status": "active"
         },
         {
           "stream_id": "15795440615",
           "stream_name": "Betwinner_cm",
-          "active_users": 1146,
-          "event_count": 95908,
+          "active_users": 1240,
+          "event_count": 107765,
           "key_events": {
-            "dep_done": 152,
-            "withdraw_call": 53,
+            "dep_done": 175,
+            "withdraw_call": 67,
             "login_done": 28,
-            "bet_done": 955,
+            "bet_done": 1063,
             "reg_done": 7,
             "registration": 7
-          }
+          },
+          "status": "active"
         },
         {
           "stream_id": "15795351113",
           "stream_name": "Betwinner_cd",
-          "active_users": 610,
-          "event_count": 38005,
+          "active_users": 664,
+          "event_count": 43207,
           "key_events": {
-            "dep_done": 75,
-            "withdraw_call": 56,
-            "login_done": 18,
-            "bet_done": 394,
+            "dep_done": 85,
+            "withdraw_call": 67,
+            "login_done": 19,
+            "bet_done": 441,
             "reg_done": 14,
             "registration": 14
-          }
+          },
+          "status": "active"
         },
         {
           "stream_id": "15795106736",
           "stream_name": "betwinner_ci",
-          "active_users": 556,
-          "event_count": 46176,
+          "active_users": 610,
+          "event_count": 52658,
           "key_events": {
-            "dep_done": 16,
-            "withdraw_call": 42,
-            "login_done": 27,
-            "bet_done": 468,
+            "dep_done": 18,
+            "withdraw_call": 48,
+            "login_done": 28,
+            "bet_done": 550,
             "reg_done": 8,
             "registration": 8
-          }
-        },
-        {
-          "stream_id": "15795417077",
-          "stream_name": "Betwinner_zm",
-          "active_users": 358,
-          "event_count": 29637,
-          "key_events": {
-            "dep_done": 95,
-            "withdraw_call": 36,
-            "login_done": 5,
-            "bet_done": 262,
-            "reg_done": 0,
-            "registration": 0
-          }
+          },
+          "status": "active"
         },
         {
           "stream_id": "15795446730",
           "stream_name": "Betwinner_ng",
-          "active_users": 344,
-          "event_count": 15292,
+          "active_users": 391,
+          "event_count": 18183,
           "key_events": {
-            "dep_done": 12,
-            "withdraw_call": 22,
-            "login_done": 13,
-            "bet_done": 107,
+            "dep_done": 13,
+            "withdraw_call": 28,
+            "login_done": 17,
+            "bet_done": 142,
             "reg_done": 0,
             "registration": 0
-          }
+          },
+          "status": "active"
+        },
+        {
+          "stream_id": "15795417077",
+          "stream_name": "Betwinner_zm",
+          "active_users": 390,
+          "event_count": 33038,
+          "key_events": {
+            "dep_done": 105,
+            "withdraw_call": 39,
+            "login_done": 8,
+            "bet_done": 287,
+            "reg_done": 0,
+            "registration": 0
+          },
+          "status": "active"
         },
         {
           "stream_id": "15795415338",
           "stream_name": "Betwinner_gh",
-          "active_users": 138,
-          "event_count": 13730,
+          "active_users": 145,
+          "event_count": 14813,
           "key_events": {
-            "dep_done": 40,
-            "withdraw_call": 12,
+            "dep_done": 44,
+            "withdraw_call": 13,
             "login_done": 0,
-            "bet_done": 99,
+            "bet_done": 103,
             "reg_done": 0,
             "registration": 0
-          }
+          },
+          "status": "active"
         },
         {
           "stream_id": "15795429291",
           "stream_name": "Betwinner_ke",
-          "active_users": 122,
-          "event_count": 8992,
+          "active_users": 127,
+          "event_count": 10761,
           "key_events": {
-            "dep_done": 33,
-            "withdraw_call": 30,
+            "dep_done": 41,
+            "withdraw_call": 42,
             "login_done": 0,
-            "bet_done": 72,
+            "bet_done": 88,
             "reg_done": 0,
             "registration": 0
-          }
+          },
+          "status": "active"
         },
         {
           "stream_id": "15795452333",
           "stream_name": "Betwinner_ke_ps",
-          "active_users": 79,
-          "event_count": 4797,
+          "active_users": 87,
+          "event_count": 5273,
           "key_events": {
-            "dep_done": 15,
-            "withdraw_call": 37,
+            "dep_done": 17,
+            "withdraw_call": 42,
             "login_done": 0,
-            "bet_done": 21,
+            "bet_done": 25,
             "reg_done": 0,
             "registration": 0
-          }
+          },
+          "status": "active"
         },
         {
           "stream_id": "15795442611",
           "stream_name": "Betwinner_cotz",
-          "active_users": 37,
-          "event_count": 2059,
+          "active_users": 42,
+          "event_count": 2162,
           "key_events": {
-            "dep_done": 5,
+            "dep_done": 0,
             "withdraw_call": 0,
             "login_done": 0,
-            "bet_done": 19,
+            "bet_done": 20,
             "reg_done": 0,
             "registration": 0
-          }
+          },
+          "status": "active"
         },
         {
           "stream_id": "15795428253",
           "stream_name": "Betwinner_ug",
           "active_users": 23,
-          "event_count": 2018,
+          "event_count": 2095,
           "key_events": {
             "dep_done": 0,
             "withdraw_call": 0,
@@ -184,21 +202,23 @@
             "bet_done": 0,
             "reg_done": 0,
             "registration": 0
-          }
+          },
+          "status": "active"
         },
         {
           "stream_id": "15795447940",
           "stream_name": "Betwinner_comz",
-          "active_users": 18,
-          "event_count": 564,
+          "active_users": 21,
+          "event_count": 787,
           "key_events": {
             "dep_done": 0,
             "withdraw_call": 0,
             "login_done": 0,
-            "bet_done": 0,
+            "bet_done": 7,
             "reg_done": 0,
             "registration": 0
-          }
+          },
+          "status": "active"
         },
         {
           "stream_id": "15795433837",
@@ -212,7 +232,8 @@
             "bet_done": 0,
             "reg_done": 0,
             "registration": 0
-          }
+          },
+          "status": "active"
         }
       ]
     },
@@ -220,15 +241,22 @@
       "label": "iOS",
       "property_id": "554704244",
       "totals": {
-        "active_users": 1193,
-        "event_count": 132999,
-        "new_users": 13
+        "active_users": 1344,
+        "event_count": 166217,
+        "new_users": 19
       },
+      "trend": [
+        {
+          "date": "2026-09-17",
+          "active_users": 1344,
+          "event_count": 166217
+        }
+      ],
       "key_events_total": {
-        "dep_done": 72,
-        "withdraw_call": 112,
-        "login_done": 14,
-        "bet_done": 769,
+        "dep_done": 89,
+        "withdraw_call": 152,
+        "login_done": 17,
+        "bet_done": 963,
         "reg_done": 5,
         "registration": 0
       },
@@ -236,78 +264,83 @@
         {
           "stream_id": "15795470659",
           "stream_name": "BetWinner.cm",
-          "active_users": 537,
-          "event_count": 69381,
+          "active_users": 600,
+          "event_count": 87134,
           "key_events": {
-            "dep_done": 28,
-            "withdraw_call": 49,
-            "login_done": 2,
-            "bet_done": 374,
+            "dep_done": 34,
+            "withdraw_call": 83,
+            "login_done": 3,
+            "bet_done": 500,
             "reg_done": 4,
             "registration": 0
-          }
+          },
+          "status": "active"
         },
         {
           "stream_id": "15795493958",
           "stream_name": "Betwinner.ng",
-          "active_users": 349,
-          "event_count": 35107,
+          "active_users": 399,
+          "event_count": 43918,
           "key_events": {
             "dep_done": 11,
-            "withdraw_call": 25,
-            "login_done": 9,
-            "bet_done": 154,
+            "withdraw_call": 29,
+            "login_done": 10,
+            "bet_done": 178,
             "reg_done": 0,
             "registration": 0
-          }
+          },
+          "status": "active"
         },
         {
           "stream_id": "15795499199",
           "stream_name": "Betwinner.cd",
-          "active_users": 245,
-          "event_count": 24067,
+          "active_users": 277,
+          "event_count": 29458,
           "key_events": {
-            "dep_done": 27,
+            "dep_done": 38,
             "withdraw_call": 24,
-            "login_done": 1,
-            "bet_done": 217,
+            "login_done": 2,
+            "bet_done": 251,
             "reg_done": 1,
             "registration": 0
-          }
+          },
+          "status": "active"
         },
         {
           "stream_id": "15795500993",
           "stream_name": "Betwinner.zm",
-          "active_users": 42,
-          "event_count": 3264,
+          "active_users": 45,
+          "event_count": 4254,
           "key_events": {
             "dep_done": 4,
-            "withdraw_call": 10,
+            "withdraw_call": 12,
             "login_done": 1,
-            "bet_done": 23,
+            "bet_done": 32,
             "reg_done": 0,
             "registration": 0
-          }
+          },
+          "status": "active"
         },
         {
           "stream_id": "15795514747",
           "stream_name": "Betwinner.ke",
-          "active_users": 12,
-          "event_count": 911,
+          "active_users": 13,
+          "event_count": 1125,
           "key_events": {
             "dep_done": 2,
             "withdraw_call": 4,
             "login_done": 0,
-            "bet_done": 1,
+            "bet_done": 2,
             "reg_done": 0,
             "registration": 0
-          }
+          },
+          "status": "active"
         },
         {
           "stream_id": "15795506960",
           "stream_name": "BetWinner.rs",
-          "active_users": 6,
-          "event_count": 228,
+          "active_users": 7,
+          "event_count": 279,
           "key_events": {
             "dep_done": 0,
             "withdraw_call": 0,
@@ -315,7 +348,23 @@
             "bet_done": 0,
             "reg_done": 0,
             "registration": 0
-          }
+          },
+          "status": "active"
+        },
+        {
+          "stream_id": "15795488134",
+          "stream_name": "Betwinner.ug",
+          "active_users": 2,
+          "event_count": 30,
+          "key_events": {
+            "dep_done": 0,
+            "withdraw_call": 0,
+            "login_done": 0,
+            "bet_done": 0,
+            "reg_done": 0,
+            "registration": 0
+          },
+          "status": "active"
         },
         {
           "stream_id": "15795462681",
@@ -329,21 +378,8 @@
             "bet_done": 0,
             "reg_done": 0,
             "registration": 0
-          }
-        },
-        {
-          "stream_id": "15795488134",
-          "stream_name": "Betwinner.ug",
-          "active_users": 1,
-          "event_count": 22,
-          "key_events": {
-            "dep_done": 0,
-            "withdraw_call": 0,
-            "login_done": 0,
-            "bet_done": 0,
-            "reg_done": 0,
-            "registration": 0
-          }
+          },
+          "status": "active"
         }
       ]
     }
