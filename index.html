@@ -158,6 +158,39 @@
   .period-pill:disabled:hover { border-color: var(--border); color: var(--text-secondary); }
   #period-row-days .period-pill { padding: 6px 10px; min-width: 34px; text-align: center; }
 
+  /* top-level view switcher (ВЕБ/КОНСОЛЬ/ПРИЛОЖЕНИЕ) -- centered segmented
+     control, deliberately a different visual weight from .tabs/.tab-btn
+     (the smaller underline tabs used one level down, e.g. Общее/ПК/Моб) so
+     the two never read as the same kind of control */
+  .toplevel-tabs {
+    display: flex; justify-content: center; gap: 6px;
+    max-width: 520px; margin: 0 auto 24px; padding: 6px;
+    background: var(--surface-1); border: 1px solid var(--border); border-radius: 14px;
+    box-shadow: var(--card-shadow);
+  }
+  .toplevel-btn {
+    flex: 1; padding: 11px 20px; font-size: 14px; font-weight: 700;
+    background: none; border: none; border-radius: 10px; cursor: pointer;
+    color: var(--text-secondary); transition: background .15s, color .15s, box-shadow .15s;
+    white-space: nowrap;
+  }
+  .toplevel-btn.active {
+    background: linear-gradient(135deg, var(--brand-a), var(--brand-b));
+    color: #fff; box-shadow: 0 4px 14px rgba(42,120,214,0.35);
+  }
+  .toplevel-btn:hover:not(.active) { color: var(--text-primary); background: var(--grid); }
+
+  .site-filter-row {
+    display: flex; align-items: center; gap: 10px; margin-bottom: 18px;
+  }
+  .site-filter-row label { font-size: 13px; color: var(--text-secondary); font-weight: 600; }
+  select.site-select {
+    background: var(--surface-1); border: 1.5px solid var(--border);
+    color: var(--text-primary); font-size: 13px; font-weight: 600;
+    padding: 8px 14px; border-radius: 10px; cursor: pointer;
+  }
+  select.site-select:hover { border-color: var(--brand-a); }
+
   .tabs { display: flex; gap: 4px; border-bottom: 1px solid var(--grid); margin-bottom: 24px; position: relative; }
   .tab-btn {
     padding: 10px 18px; font-size: 14px; font-weight: 600;
@@ -483,20 +516,24 @@
       </div>
     </div>
     <div class="header-controls">
-      <select id="site-switcher" class="top-select"></select>
       <div class="period-badge"><span class="dot"></span><span id="period-label">с 17.08.2026</span></div>
     </div>
   </header>
 
-  <div class="tabs" id="top-level-tabs">
-    <button class="tab-btn toplevel-btn active" data-toplevel="web">ВЕБ</button>
-    <button class="tab-btn toplevel-btn" data-toplevel="console">КОНСОЛЬ</button>
-    <button class="tab-btn toplevel-btn" data-toplevel="app">📱 ПРИЛОЖЕНИЕ</button>
+  <div class="toplevel-tabs" id="top-level-tabs">
+    <button class="toplevel-btn active" data-toplevel="web">ВЕБ</button>
+    <button class="toplevel-btn" data-toplevel="console">КОНСОЛЬ</button>
+    <button class="toplevel-btn" data-toplevel="app">📱 ПРИЛОЖЕНИЕ</button>
   </div>
 
   <div id="loading-indicator"><div class="spinner"></div><span>Загружаем данные отчёта…</span></div>
 
   <div id="view-web">
+    <div class="site-filter-row">
+      <label for="site-switcher">Рынок / домен:</label>
+      <select id="site-switcher" class="site-select"></select>
+    </div>
+
     <div class="period-picker" id="period-picker" style="display:none;">
       <div class="period-row" id="period-row-months"></div>
       <div class="period-row" id="period-row-weeks" style="display:none;"></div>
@@ -1169,6 +1206,75 @@ function niceAxisStep(max, targetTicks) {
 }
 
 // Simple line/area chart for a daily trend — sequential single hue (dataviz: "trend over time -> line")
+// Donut chart -- categorical identity (which slice is which), fixed hues
+// passed in by the caller (never auto-cycled), legend always present with
+// label + value + share so identity never rides on color alone.
+function buildDonutChart(segments) {
+  const wrap = document.createElement("div");
+  wrap.style.cssText = "display:flex;align-items:center;gap:20px;flex-wrap:wrap;";
+  const total = segments.reduce((s, x) => s + x.value, 0);
+  if (total <= 0) {
+    const note = document.createElement("div");
+    note.className = "note-banner small";
+    note.innerHTML = "<b>Нет данных за период.</b>";
+    wrap.appendChild(note);
+    return wrap;
+  }
+
+  const size = 160, r = 62, cx = size / 2, cy = size / 2, sw = 26;
+  const circumference = 2 * Math.PI * r;
+  const svgNS = "http://www.w3.org/2000/svg";
+  const svg = document.createElementNS(svgNS, "svg");
+  svg.setAttribute("viewBox", `0 0 ${size} ${size}`);
+  svg.setAttribute("width", size); svg.setAttribute("height", size);
+  svg.style.flexShrink = "0";
+
+  const bg = document.createElementNS(svgNS, "circle");
+  bg.setAttribute("cx", cx); bg.setAttribute("cy", cy); bg.setAttribute("r", r);
+  bg.setAttribute("fill", "none"); bg.setAttribute("stroke", cssVar("--grid")); bg.setAttribute("stroke-width", sw);
+  svg.appendChild(bg);
+
+  let offset = 0;
+  segments.filter(s => s.value > 0).forEach(s => {
+    const frac = s.value / total;
+    const dash = frac * circumference;
+    const circle = document.createElementNS(svgNS, "circle");
+    circle.setAttribute("cx", cx); circle.setAttribute("cy", cy); circle.setAttribute("r", r);
+    circle.setAttribute("fill", "none");
+    circle.setAttribute("stroke", cssVar(s.colorVar));
+    circle.setAttribute("stroke-width", sw);
+    circle.setAttribute("stroke-dasharray", `${dash} ${circumference - dash}`);
+    circle.setAttribute("stroke-dashoffset", -offset);
+    circle.setAttribute("transform", `rotate(-90 ${cx} ${cy})`);
+    circle.style.transition = "stroke-dashoffset .6s ease";
+    bindTip(circle, s.label, `${fmtInt(s.value)} (${fmtPct(frac * 100)})`);
+    svg.appendChild(circle);
+    offset += dash;
+  });
+
+  const centerText = document.createElementNS(svgNS, "text");
+  centerText.setAttribute("x", cx); centerText.setAttribute("y", cy + 5);
+  centerText.setAttribute("text-anchor", "middle");
+  centerText.style.cssText = "font-size:15px;font-weight:700;fill:" + cssVar("--text-primary") + ";";
+  centerText.textContent = fmtCompact(total);
+  svg.appendChild(centerText);
+  wrap.appendChild(svg);
+
+  const legend = document.createElement("div");
+  legend.className = "legend";
+  legend.style.flex = "1";
+  segments.forEach(s => {
+    const item = document.createElement("div");
+    item.className = "legend-item";
+    const pct = total ? fmtPct(s.value / total * 100) : "0%";
+    item.innerHTML = `<span class="legend-swatch" style="background:${cssVar(s.colorVar)};"></span><span class="legend-label">${s.label}</span><span class="legend-value">${fmtInt(s.value)} · ${pct}</span>`;
+    legend.appendChild(item);
+  });
+  wrap.appendChild(legend);
+
+  return wrap;
+}
+
 function buildTrendChart(points, key, label, colorVar) {
   colorVar = colorVar || "--brand-a";
   const wrap = document.createElement("div"); wrap.className = "trend-wrap";
@@ -2775,13 +2881,13 @@ async function fetchMobileApp() {
   return MOBILE_APP_DATA;
 }
 
-const KEY_EVENT_LABELS = {
-  dep_done: "Депозит",
-  withdraw_call: "Вывод",
-  login_done: "Логин",
-  bet_done: "Ставка",
-  reg_done: "Рег. (native)",
-  registration: "Рег. (событие)",
+const EVENT_GLOSSARY = {
+  dep_done: { label: "Депозит", desc: "успешно завершённый депозит игрока." },
+  withdraw_call: { label: "Вывод", desc: "запрос на вывод средств инициирован игроком." },
+  login_done: { label: "Логин", desc: "успешный вход в игровой аккаунт." },
+  bet_done: { label: "Ставка", desc: "ставка размещена и подтверждена." },
+  reg_done: { label: "Рег. (native)", desc: "регистрация нового игрового аккаунта, из нативного слоя приложения (native dataLayer)." },
+  registration: { label: "Рег. (событие)", desc: "отдельное событие регистрации — как правило фиксируется одновременно с reg_done, дублирующий сигнал." },
 };
 
 function combinePlatforms(data) {
@@ -2795,7 +2901,7 @@ function combinePlatforms(data) {
     totals.active_users += p.totals.active_users;
     totals.event_count += p.totals.event_count;
     totals.new_users += p.totals.new_users;
-    Object.keys(KEY_EVENT_LABELS).forEach(ev => { key_events_total[ev] = (key_events_total[ev] || 0) + (p.key_events_total[ev] || 0); });
+    Object.keys(EVENT_GLOSSARY).forEach(ev => { key_events_total[ev] = (key_events_total[ev] || 0) + (p.key_events_total[ev] || 0); });
     p.streams.forEach(s => {
       const label = `${s.stream_name} (${p.label})`;
       streamMap[label] = { ...s, stream_name: label, platform: p.label };
@@ -2860,60 +2966,68 @@ function renderMobileAppContent(content, data) {
   kpiWrap.appendChild(kpiTile("Депозитов (dep_done)", depCount, "completionRate"));
   content.appendChild(kpiWrap);
 
-  // NOT a real conversion funnel: dep_done/bet_done count ALL active users
-  // today, while reg_done/registration only count users who registered
-  // TODAY specifically (property is brand-new, created 17.09.2026 -- there's
-  // no earlier history to look back at). Comparing "today's new signups" to
-  // "today's deposits from the entire existing user base" as if one flowed
-  // into the other produced a nonsense >100% "conversion" the first time
-  // this was built -- caught by looking at the live number, not assumed.
-  // Shown here as three independent daily volumes instead, with an explicit
-  // note, until enough days accumulate to build real per-user cohort
-  // conversion (needs a user-level join GA4's aggregate event counts can't
-  // give us -- BigQuery Export, paused per go-ahead, would unlock this).
-  const volCard = document.createElement("div");
-  volCard.className = "card reveal";
-  volCard.style.marginBottom = "16px";
-  const volTitle = document.createElement("div");
-  volTitle.style.cssText = "font-size:13px;color:var(--text-secondary);margin-bottom:10px;font-weight:600;";
-  volTitle.textContent = "Объём за сегодня: регистрация / депозит / ставка (НЕ воронка конверсии — см. примечание ниже)";
-  volCard.appendChild(volTitle);
-  volCard.appendChild(buildRankedBars([
-    { label: "Регистрация (reg_done + registration)", value: regTotal, tip: `${regTotal.toLocaleString("ru-RU")} событий регистрации сегодня` },
-    { label: "Депозит (dep_done)", value: depCount, tip: `${depCount.toLocaleString("ru-RU")} депозитов сегодня, от ВСЕХ активных пользователей` },
-    { label: "Ставка (bet_done)", value: betCount, tip: `${betCount.toLocaleString("ru-RU")} ставок сегодня, от ВСЕХ активных пользователей` },
-  ]));
-  const volNote = document.createElement("div");
-  volNote.style.cssText = "font-size:12px;color:var(--text-secondary);margin-top:10px;";
-  volNote.innerHTML = "<b>Это не воронка конверсии.</b> \"Депозит\"/\"Ставка\" считаются по всем активным пользователям сегодня (включая тех, кто зарегистрировался до 17.09.2026 — property только что создан, старой истории регистраций нет), а \"Регистрация\" — только по НОВЫМ регистрациям за сегодня. Это разные группы людей, сравнивать напрямую нельзя. Настоящая когортная конверсия (для тех, кто реально зарегистрировался и затем внёс депозит) появится после подключения BigQuery Export.";
-  volCard.appendChild(volNote);
-  content.appendChild(volCard);
-
-  // daily trend chart -- will fill in as more days accumulate past the
-  // 17.09.2026 migration date; buildTrendChart already handles the 0/1/N
-  // point cases gracefully (hero number for a single day, real line once
-  // there's more)
+  // daily trend charts -- two metrics side by side, same layout as the
+  // КОНСОЛЬ tab's "Динамика по дням" card (one card, .two-col row, each
+  // column with its own small title + buildTrendChart). Will fill in as
+  // more days accumulate past the 17.09.2026 migration date; buildTrendChart
+  // already handles the 0/1/N point cases gracefully (hero number for a
+  // single day, real line once there's more).
   const trendCard = document.createElement("div");
   trendCard.className = "card reveal";
   trendCard.style.marginBottom = "16px";
-  const trendTitle = document.createElement("div");
-  trendTitle.style.cssText = "font-size:13px;color:var(--text-secondary);margin-bottom:10px;font-weight:600;";
-  trendTitle.textContent = "Активные пользователи по дням";
-  trendCard.appendChild(trendTitle);
-  trendCard.appendChild(buildTrendChart(p.trend.map(t => ({ date: t.date, active_users: t.active_users })), "active_users", "Активные пользователи", "--series-1"));
+  const trendCardTitle = document.createElement("div");
+  trendCardTitle.style.cssText = "font-size:14px;font-weight:700;margin-bottom:14px;";
+  trendCardTitle.textContent = "Динамика по дням";
+  trendCard.appendChild(trendCardTitle);
+  const trendRow = document.createElement("div");
+  trendRow.className = "two-col";
+  const trendPoints = p.trend.map(t => ({ date: t.date, active_users: t.active_users, event_count: t.event_count }));
+  const usersCol = document.createElement("div");
+  usersCol.innerHTML = `<div style="font-size:12px;color:var(--text-secondary);font-weight:600;margin-bottom:8px;">Активные пользователи</div>`;
+  usersCol.appendChild(buildTrendChart(trendPoints, "active_users", "Активные пользователи", "--series-1"));
+  const eventsCol = document.createElement("div");
+  eventsCol.innerHTML = `<div style="font-size:12px;color:var(--text-secondary);font-weight:600;margin-bottom:8px;">События</div>`;
+  eventsCol.appendChild(buildTrendChart(trendPoints, "event_count", "События", "--series-3"));
+  trendRow.append(usersCol, eventsCol);
+  trendCard.appendChild(trendRow);
   content.appendChild(trendCard);
 
-  // ranked bars per GEO -- quick visual comparison, same component as the
-  // web report's country/channel breakdowns
-  const barsCard = document.createElement("div");
-  barsCard.className = "card reveal";
-  barsCard.style.marginBottom = "16px";
-  const barsTitle = document.createElement("div");
-  barsTitle.style.cssText = "font-size:13px;color:var(--text-secondary);margin-bottom:10px;font-weight:600;";
-  barsTitle.textContent = "Пользователи по GEO-потокам";
-  barsCard.appendChild(barsTitle);
-  barsCard.appendChild(buildRankedBars(p.streams.map(s => ({ label: s.stream_name, value: s.active_users, tip: `${s.active_users.toLocaleString("ru-RU")} пользователей · ${s.event_count.toLocaleString("ru-RU")} событий` }))));
-  content.appendChild(barsCard);
+  // donut charts: platform split (only meaningful in "combined" view, where
+  // there are 2 real categories to compare) and key-event composition
+  // (always shown) -- replaces the earlier ranked-bars-by-GEO block, which
+  // just duplicated the sortable table below with a long-tail bar chart
+  // where everything past the top 2 bars was an indistinguishable sliver
+  const donutRow = document.createElement("div");
+  donutRow.className = "two-col";
+  donutRow.style.marginBottom = "16px";
+
+  if (MOBILE_APP_PLATFORM === "combined") {
+    const platCard = document.createElement("div");
+    platCard.className = "card reveal";
+    const platTitle = document.createElement("div");
+    platTitle.style.cssText = "font-size:13px;color:var(--text-secondary);margin-bottom:10px;font-weight:600;";
+    platTitle.textContent = "Активные пользователи: Android vs iOS";
+    platCard.appendChild(platTitle);
+    platCard.appendChild(buildDonutChart([
+      { label: "Android", value: data.platforms.android.totals.active_users, colorVar: "--series-3" },
+      { label: "iOS", value: data.platforms.ios.totals.active_users, colorVar: "--series-2" },
+    ]));
+    donutRow.appendChild(platCard);
+  }
+
+  const evCard = document.createElement("div");
+  evCard.className = "card reveal";
+  const evTitle = document.createElement("div");
+  evTitle.style.cssText = "font-size:13px;color:var(--text-secondary);margin-bottom:10px;font-weight:600;";
+  evTitle.textContent = "Состав ключевых событий";
+  evCard.appendChild(evTitle);
+  const evColors = ["--series-1", "--series-2", "--series-3", "--series-4", "--series-5", "--series-6"];
+  evCard.appendChild(buildDonutChart(Object.entries(EVENT_GLOSSARY).map(([k, g], i) => ({
+    label: g.label, value: p.key_events_total[k] || 0, colorVar: evColors[i % evColors.length],
+  }))));
+  donutRow.appendChild(evCard);
+
+  content.appendChild(donutRow);
 
   // detail table with status dots (--good/--critical, same status colors
   // used in the Mobile Analytics Google Sheet), sortable like
@@ -2929,11 +3043,10 @@ function renderMobileAppContent(content, data) {
   const table = document.createElement("table");
   table.className = "events-table";
   const cols = [
-    { key: "stream_name", label: "GEO / Stream", align: "left" },
-    { key: "status", label: "Статус", align: "left" },
-    { key: "active_users", label: "Пользователи", align: "right" },
-    { key: "event_count", label: "События", align: "right" },
-    ...Object.entries(KEY_EVENT_LABELS).map(([k, label]) => ({ key: "ke_" + k, label, align: "right" })),
+    { key: "stream_name", label: "GEO / Stream", align: "left", tip: "Название Firebase-стрима — по нему определяется GEO (наша собственная разметка, не GA4-геолокация)." },
+    { key: "active_users", label: "Пользователи", align: "right", tip: "activeUsers — уникальные пользователи, открывшие приложение и вызвавшие хотя бы одно событие за период." },
+    { key: "event_count", label: "События", align: "right", tip: "eventCount — суммарно все события (включая автоматические, не только ключевые бизнес-события ниже) за период." },
+    ...Object.entries(EVENT_GLOSSARY).map(([k, g]) => ({ key: "ke_" + k, label: g.label, align: "right", tip: `${k} — ${g.desc}` })),
   ];
   let sortKey = "active_users", sortDir = -1;
   const thead = document.createElement("thead");
@@ -2942,6 +3055,7 @@ function renderMobileAppContent(content, data) {
     const th = document.createElement("th");
     th.style.textAlign = c.align; th.style.cursor = "pointer"; th.style.userSelect = "none";
     th.textContent = c.label;
+    if (c.tip) bindTip(th, c.label, c.tip);
     th.addEventListener("click", () => {
       if (sortKey === c.key) sortDir = -sortDir; else { sortKey = c.key; sortDir = c.key === "stream_name" ? 1 : -1; }
       renderRows();
@@ -2953,11 +3067,28 @@ function renderMobileAppContent(content, data) {
   const tbody = document.createElement("tbody");
   table.appendChild(tbody);
   tableCard.appendChild(table);
+  const showMoreWrap = document.createElement("div");
+  showMoreWrap.style.cssText = "text-align:center;margin-top:12px;";
+  const showMoreBtn = document.createElement("button");
+  showMoreBtn.className = "period-pill";
+  showMoreWrap.appendChild(showMoreBtn);
+  tableCard.appendChild(showMoreWrap);
   content.appendChild(tableCard);
+
+  const TOP_N = 10;
+  let expanded = false;
 
   function rowValue(s, key) {
     if (key.startsWith("ke_")) return s.key_events[key.slice(3)] || 0;
     return s[key];
+  }
+  function renderRow(s) {
+    const tr = document.createElement("tr");
+    tr.innerHTML = `<td>${s.stream_name}</td>
+      <td style="text-align:right;">${s.active_users.toLocaleString("ru-RU")}</td>
+      <td style="text-align:right;">${s.event_count.toLocaleString("ru-RU")}</td>
+      ${Object.keys(EVENT_GLOSSARY).map(ev => `<td style="text-align:right;">${(s.key_events[ev] || 0).toLocaleString("ru-RU")}</td>`).join("")}`;
+    return tr;
   }
   function renderRows() {
     tbody.innerHTML = "";
@@ -2966,18 +3097,16 @@ function renderMobileAppContent(content, data) {
       if (typeof va === "string") return sortDir * va.localeCompare(vb);
       return sortDir === 1 ? va - vb : vb - va;
     });
-    rows.forEach(s => {
-      const tr = document.createElement("tr");
-      const isActive = s.status === "active";
-      const statusHtml = `<span style="display:inline-flex;align-items:center;gap:6px;"><span style="width:8px;height:8px;border-radius:50%;background:${isActive ? "var(--good)" : "var(--critical)"};display:inline-block;"></span>${isActive ? "Работает" : "Нет трафика"}</span>`;
-      tr.innerHTML = `<td>${s.stream_name}</td>
-        <td>${statusHtml}</td>
-        <td style="text-align:right;">${s.active_users.toLocaleString("ru-RU")}</td>
-        <td style="text-align:right;">${s.event_count.toLocaleString("ru-RU")}</td>
-        ${Object.keys(KEY_EVENT_LABELS).map(ev => `<td style="text-align:right;">${(s.key_events[ev] || 0).toLocaleString("ru-RU")}</td>`).join("")}`;
-      tbody.appendChild(tr);
-    });
+    const visible = expanded ? rows : rows.slice(0, TOP_N);
+    visible.forEach(s => tbody.appendChild(renderRow(s)));
+    if (rows.length > TOP_N) {
+      showMoreWrap.style.display = "";
+      showMoreBtn.textContent = expanded ? "Свернуть" : `Показать все (${rows.length})`;
+    } else {
+      showMoreWrap.style.display = "none";
+    }
   }
+  showMoreBtn.addEventListener("click", () => { expanded = !expanded; renderRows(); });
   renderRows();
 
   const note = document.createElement("div");
@@ -3119,7 +3248,6 @@ document.querySelectorAll(".toplevel-btn").forEach(btn => {
     document.getElementById("view-web").style.display = view === "web" ? "" : "none";
     document.getElementById("view-console").style.display = view === "console" ? "" : "none";
     document.getElementById("panel-mobile-app").style.display = view === "app" ? "" : "none";
-    document.getElementById("site-switcher").style.display = view === "web" ? "" : "none";
 
     if (view === "console" && !CONSOLE_LOADED) {
       document.getElementById("console-iframe").src = "search-console.html";
