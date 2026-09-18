@@ -2935,6 +2935,72 @@ function combinePlatforms(data) {
 }
 
 let MOBILE_APP_PLATFORM = "combined";
+let MOBILE_APP_STREAM = "all"; // "all" | "<stream_id>" | "geo:<domain>"
+
+// Maps a ВЕБ domain to substrings that identify its GA4 mobile streams by
+// package/bundle ID -- lets the ПРИЛОЖЕНИЕ tab carry over whatever GEO was
+// selected on ВЕБ instead of always resetting to "Все потоки" (colleague
+// feedback 18.09.2026: switching domain -> app tab should land on that
+// GEO's builds, not the full aggregate).
+const DOMAIN_TO_STREAM_KEYWORDS = {
+  "betwinner.com": ["org.betwinner.vac", "org.betwinner.client", "org.betwinner.huawei"],
+  "betwinner.ke": ["_ke.", "vac.ke", "ios.kenya"],
+  "betwinner.ng": ["_ng.", "vac.ng", "ng_ps", "ios.nigeria"],
+  "betwinner.cd": ["_cd.", "vac.cd", "ios.drcongo"],
+  "betwinner.co.zm": ["_zm.", "vac.zm", "ios.zambia"],
+  "betwinner.co.ug": ["_ug.", "ios.uganda"],
+  "betwinner.cm": ["_cm.", "vac.cm", "ios.camerun"],
+  "betwinner.co.mz": ["comz", "co.mz", "ios.mozambique"],
+  "betwinner.co.tz": ["cotz", "co.tz"],
+  "betwinner.rs": [".rs.", "rs.client", "ios.serbia"],
+  "betwinner.ne": ["ne.client"],
+  "betwinner.ci": [".ci"],
+  "betwinner.com.gh": ["_gh.", "vac.gh", "ios.ghana"],
+};
+
+function streamsMatchingDomain(domain, data) {
+  const keywords = DOMAIN_TO_STREAM_KEYWORDS[domain];
+  if (!keywords) return [];
+  const all = [];
+  Object.entries(data.platforms).forEach(([k, p]) => {
+    p.streams.forEach(s => {
+      const hay = (s.package || "").toLowerCase();
+      if (keywords.some(kw => hay.includes(kw))) all.push({ ...s, platform: p.label });
+    });
+  });
+  return all;
+}
+
+// Builds a "p"-shaped view (same as singleStreamView) but scoped to every
+// stream matching a domain's GEO, combined -- for when several packages
+// (e.g. Nigeria's vac.ng + _ng.client on Android, plus iOS) all belong to
+// the same GEO the user was just looking at on ВЕБ.
+function geoGroupView(domain, matchedStreams) {
+  const totals = { active_users: 0, event_count: 0, new_users: 0 };
+  const key_events_total = {};
+  const trendByDate = {};
+  matchedStreams.forEach(s => {
+    totals.active_users += s.active_users;
+    totals.event_count += s.event_count;
+    totals.new_users += s.new_users || 0;
+    Object.keys(EVENT_GLOSSARY).forEach(ev => { key_events_total[ev] = (key_events_total[ev] || 0) + (s.key_events[ev] || 0); });
+    (s.trend || []).forEach(t => {
+      trendByDate[t.date] = trendByDate[t.date] || { date: t.date, active_users: 0, event_count: 0, new_users: 0, key_events: {} };
+      trendByDate[t.date].active_users += t.active_users;
+      trendByDate[t.date].event_count += t.event_count;
+      trendByDate[t.date].new_users += (t.new_users || 0);
+      Object.keys(EVENT_GLOSSARY).forEach(ev => {
+        trendByDate[t.date].key_events[ev] = (trendByDate[t.date].key_events[ev] || 0) + ((t.key_events && t.key_events[ev]) || 0);
+      });
+    });
+  });
+  return {
+    label: `${domain} (все потоки этой GEO)`,
+    totals, key_events_total,
+    streams: matchedStreams,
+    trend: Object.values(trendByDate).sort((a, b) => a.date.localeCompare(b.date)),
+  };
+}
 
 function renderMobileApp(panel, data) {
   panel.innerHTML = "";
@@ -2945,7 +3011,7 @@ function renderMobileApp(panel, data) {
   const switcher = document.createElement("div");
   switcher.className = "tabs";
   switcher.style.marginBottom = "16px";
-  const options = [{ key: "combined", label: "Общее" }, ...platformKeys.map(k => ({ key: k, label: data.platforms[k].label }))];
+  const options = [...platformKeys.map(k => ({ key: k, label: data.platforms[k].label })), { key: "combined", label: "Общее" }];
   switcher.innerHTML = options.map(o => `<button class="tab-btn${MOBILE_APP_PLATFORM === o.key ? " active" : ""}" data-mobile-platform="${o.key}">${o.label}</button>`).join("");
   panel.appendChild(switcher);
 
@@ -2979,8 +3045,6 @@ function singleStreamView(stream, platformLabel) {
   };
 }
 
-let MOBILE_APP_STREAM = "all";
-
 function renderMobileAppContent(content, data) {
   content.innerHTML = "";
   const basePlatform = MOBILE_APP_PLATFORM === "combined" ? combinePlatforms(data) : data.platforms[MOBILE_APP_PLATFORM];
@@ -2996,8 +3060,12 @@ function renderMobileAppContent(content, data) {
   streamLabel.textContent = "Приложение:";
   const streamSelect = document.createElement("select");
   streamSelect.className = "site-select";
-  const streamOptions = [{ value: "all", text: `Все потоки (${basePlatform.streams.length})` }]
-    .concat(basePlatform.streams.map(s => ({ value: s.stream_id, text: s.package ? `${s.stream_name} — ${s.package}` : s.stream_name })));
+  const geoMatches = (CURRENT_SITE && CURRENT_SITE !== "__full_geo__") ? streamsMatchingDomain(CURRENT_SITE, data) : [];
+  const streamOptions = [{ value: "all", text: `Все потоки (${basePlatform.streams.length})` }];
+  if (geoMatches.length) {
+    streamOptions.push({ value: "geo:" + CURRENT_SITE, text: `${CURRENT_SITE} — все потоки этой GEO (${geoMatches.length})` });
+  }
+  streamOptions.push(...basePlatform.streams.map(s => ({ value: s.stream_id, text: s.package ? `${s.stream_name} — ${s.package}` : s.stream_name })));
   streamSelect.innerHTML = streamOptions.map(o => `<option value="${o.value}"${MOBILE_APP_STREAM === o.value ? " selected" : ""}>${o.text}</option>`).join("");
   streamSelect.addEventListener("change", () => {
     MOBILE_APP_STREAM = streamSelect.value;
@@ -3006,8 +3074,15 @@ function renderMobileAppContent(content, data) {
   streamFilterRow.append(streamLabel, streamSelect);
   content.appendChild(streamFilterRow);
 
-  const selectedStream = MOBILE_APP_STREAM !== "all" ? basePlatform.streams.find(s => s.stream_id === MOBILE_APP_STREAM) : null;
-  const p = selectedStream ? singleStreamView(selectedStream, selectedStream.platform || data.platforms[MOBILE_APP_PLATFORM]?.label || "") : basePlatform;
+  let p;
+  if (MOBILE_APP_STREAM.startsWith("geo:")) {
+    const domain = MOBILE_APP_STREAM.slice(4);
+    const matched = streamsMatchingDomain(domain, data);
+    p = matched.length ? geoGroupView(domain, matched) : basePlatform;
+  } else {
+    const selectedStream = MOBILE_APP_STREAM !== "all" ? basePlatform.streams.find(s => s.stream_id === MOBILE_APP_STREAM) : null;
+    p = selectedStream ? singleStreamView(selectedStream, selectedStream.platform || data.platforms[MOBILE_APP_PLATFORM]?.label || "") : basePlatform;
+  }
 
   // KPI row
   const kpiWrap = document.createElement("div");
@@ -3082,7 +3157,7 @@ function renderMobileAppContent(content, data) {
   donutRow.className = "two-col";
   donutRow.style.marginBottom = "16px";
 
-  if (MOBILE_APP_PLATFORM === "combined" && !selectedStream) {
+  if (MOBILE_APP_PLATFORM === "combined" && MOBILE_APP_STREAM === "all") {
     const platCard = document.createElement("div");
     platCard.className = "card reveal";
     const platTitle = document.createElement("div");
@@ -3368,6 +3443,15 @@ document.querySelectorAll(".toplevel-btn").forEach(btn => {
     }
     if (view === "app") {
       const data = await fetchMobileApp();
+      // Carry the GEO the user was just looking at on ВЕБ over to
+      // ПРИЛОЖЕНИЕ, instead of always resetting to "Все потоки" (colleague
+      // feedback 18.09.2026: switching betwinner.ng -> ПРИЛОЖЕНИЕ should
+      // land on Nigeria's builds, not the full aggregate).
+      if (CURRENT_SITE && CURRENT_SITE !== "__full_geo__" && DOMAIN_TO_STREAM_KEYWORDS[CURRENT_SITE]) {
+        MOBILE_APP_STREAM = "geo:" + CURRENT_SITE;
+      } else {
+        MOBILE_APP_STREAM = "all";
+      }
       renderMobileApp(document.getElementById("panel-mobile-app"), data);
       document.getElementById("report-title").textContent = "Mobile App (Firebase/GA4) — Android + iOS";
       document.getElementById("report-sub").innerHTML = `Обновлено: <b>${new Date(data.generated_at).toLocaleString("ru-RU", { dateStyle: "medium", timeStyle: "short" })}</b> · Источник: Firebase → GA4 · данные с 17.09.2026 (миграция на новые property)`;
