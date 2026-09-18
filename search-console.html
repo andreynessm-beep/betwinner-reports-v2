@@ -37,6 +37,14 @@
     background: var(--surface-1); font-size: 14px; font-weight: 600; color: var(--text-primary);
     box-shadow: var(--card-shadow); min-width: 260px; cursor: pointer;
   }
+  .period-picker { display: flex; gap: 6px; margin-bottom: 18px; }
+  .period-pill {
+    padding: 7px 14px; border-radius: 8px; font-size: 12.5px; font-weight: 600;
+    background: var(--surface-1); border: 1.5px solid var(--border); color: var(--text-secondary);
+    cursor: pointer; white-space: nowrap; transition: background .15s, color .15s, border-color .15s;
+  }
+  .period-pill:hover { border-color: var(--brand-a); color: var(--text-primary); }
+  .period-pill.active { background: var(--brand-a); border-color: var(--brand-a); color: #fff; }
   .kpi-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 14px; margin-bottom: 22px; }
   .kpi-card { background: var(--surface-1); border-radius: 14px; padding: 16px 18px; box-shadow: var(--card-shadow); }
   .kpi-label { font-size: 12px; color: var(--text-muted); font-weight: 600; text-transform: uppercase; letter-spacing: .03em; }
@@ -106,6 +114,7 @@
     <select id="domain-select"></select>
   </header>
 
+  <div class="period-picker" id="period-picker"></div>
   <div id="content"></div>
   <div class="updated-note" id="updated-note"></div>
 </div>
@@ -292,7 +301,48 @@ function sitemapStatusPill(sm) {
   return `<span class="status-pill status-ok">OK</span>`;
 }
 
+let PERIOD_DAYS = "all"; // "all" | 28 | 7
+let CURRENT_DOMAIN = null;
+
+function filteredDaily(daily) {
+  if (PERIOD_DAYS === "all") return daily;
+  return daily.slice(-PERIOD_DAYS);
+}
+
+// GSC's own metrics aren't simple sums -- CTR/position are re-derived from
+// the filtered days the same way GSC itself weights them (CTR by clicks over
+// impressions, position by an impression-weighted average), not by
+// averaging the daily CTR/position values (which would over-count low-
+// traffic days).
+function computeTotals(daily) {
+  let clicks = 0, impressions = 0, positionWeighted = 0;
+  daily.forEach(p => {
+    clicks += p.clicks; impressions += p.impressions;
+    positionWeighted += p.position * p.impressions;
+  });
+  return {
+    clicks, impressions,
+    ctr: impressions > 0 ? clicks / impressions * 100 : 0,
+    position: impressions > 0 ? positionWeighted / impressions : 0,
+  };
+}
+
+function renderPeriodPicker() {
+  const el = document.getElementById("period-picker");
+  const options = [{ key: "all", label: "Весь период (91 дн)" }, { key: 28, label: "Последние 28 дней" }, { key: 7, label: "Последние 7 дней" }];
+  el.innerHTML = options.map(o => `<button class="period-pill${PERIOD_DAYS === o.key ? " active" : ""}" data-period="${o.key}">${o.label}</button>`).join("");
+  el.querySelectorAll("button").forEach(btn => {
+    btn.addEventListener("click", () => {
+      const key = btn.dataset.period;
+      PERIOD_DAYS = key === "all" ? "all" : Number(key);
+      if (CURRENT_DOMAIN) renderDomain(CURRENT_DOMAIN);
+    });
+  });
+}
+
 function renderDomain(domain) {
+  CURRENT_DOMAIN = domain;
+  renderPeriodPicker();
   const d = DATA.domains[domain];
   const content = document.getElementById("content");
   content.innerHTML = "";
@@ -303,14 +353,16 @@ function renderDomain(domain) {
     return;
   }
 
-  const t = d.totals;
-  const peakDay = d.daily.reduce((best, p) => (p.clicks > best.clicks ? p : best), d.daily[0]);
+  const daily = filteredDaily(d.daily);
+  const t = PERIOD_DAYS === "all" ? d.totals : computeTotals(daily);
+  const periodLabel = PERIOD_DAYS === "all" ? "91 день" : `${PERIOD_DAYS} дн`;
+  const peakDay = daily.reduce((best, p) => (p.clicks > best.clicks ? p : best), daily[0]);
   const sitemapsOk = d.sitemaps.filter(sm => sm.errors === 0).length;
 
   const kpiGrid = document.createElement("div"); kpiGrid.className = "kpi-grid";
   kpiGrid.innerHTML = `
-    <div class="kpi-card"><div class="kpi-label">Клики (91 день)</div><div class="kpi-value">${fmtInt(t.clicks)}</div></div>
-    <div class="kpi-card"><div class="kpi-label">Показы (91 день)</div><div class="kpi-value">${fmtInt(t.impressions)}</div></div>
+    <div class="kpi-card"><div class="kpi-label">Клики (${periodLabel})</div><div class="kpi-value">${fmtInt(t.clicks)}</div></div>
+    <div class="kpi-card"><div class="kpi-label">Показы (${periodLabel})</div><div class="kpi-value">${fmtInt(t.impressions)}</div></div>
     <div class="kpi-card"><div class="kpi-label">Средний CTR</div><div class="kpi-value">${fmtPct(t.ctr)}</div></div>
     <div class="kpi-card"><div class="kpi-label">Средняя позиция</div><div class="kpi-value">${fmtPos(t.position)}</div></div>
     <div class="kpi-card"><div class="kpi-label">Пиковый день</div><div class="kpi-value">${fmtInt(peakDay.clicks)}</div></div>
@@ -322,9 +374,9 @@ function renderDomain(domain) {
   chartsCard.innerHTML = `<h2>Динамика по дням</h2>`;
   const chartsRow = document.createElement("div"); chartsRow.className = "charts-row";
   const clicksCol = document.createElement("div"); clicksCol.innerHTML = `<div class="chart-title">Клики</div>`;
-  clicksCol.appendChild(buildTrendChart(d.daily, "clicks", "Клики", "--series-1", fmtInt));
+  clicksCol.appendChild(buildTrendChart(daily, "clicks", "Клики", "--series-1", fmtInt));
   const impCol = document.createElement("div"); impCol.innerHTML = `<div class="chart-title">Показы</div>`;
-  impCol.appendChild(buildTrendChart(d.daily, "impressions", "Показы", "--series-3", fmtInt));
+  impCol.appendChild(buildTrendChart(daily, "impressions", "Показы", "--series-3", fmtInt));
   chartsRow.append(clicksCol, impCol);
   chartsCard.appendChild(chartsRow);
   content.appendChild(chartsCard);
@@ -333,9 +385,9 @@ function renderDomain(domain) {
   chartsCard2.innerHTML = `<h2>CTR и позиция по дням</h2>`;
   const chartsRow2 = document.createElement("div"); chartsRow2.className = "charts-row";
   const ctrCol = document.createElement("div"); ctrCol.innerHTML = `<div class="chart-title">CTR</div>`;
-  ctrCol.appendChild(buildTrendChart(d.daily, "ctr", "CTR", "--brand-b", fmtPct));
+  ctrCol.appendChild(buildTrendChart(daily, "ctr", "CTR", "--brand-b", fmtPct));
   const posCol = document.createElement("div"); posCol.innerHTML = `<div class="chart-title">Средняя позиция</div>`;
-  posCol.appendChild(buildTrendChart(d.daily, "position", "Позиция", "--warning", fmtPos));
+  posCol.appendChild(buildTrendChart(daily, "position", "Позиция", "--warning", fmtPos));
   chartsRow2.append(ctrCol, posCol);
   chartsCard2.appendChild(chartsRow2);
   content.appendChild(chartsCard2);

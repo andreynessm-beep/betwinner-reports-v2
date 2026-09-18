@@ -2935,6 +2935,7 @@ function combinePlatforms(data) {
 }
 
 let MOBILE_APP_PLATFORM = "combined";
+let MOBILE_APP_PERIOD_DAYS = "all";
 let MOBILE_APP_STREAM = "all"; // "all" | "<stream_id>" | "geo:<domain>"
 
 // Maps a ВЕБ domain to substrings that identify its GA4 mobile streams by
@@ -3119,7 +3120,26 @@ function renderMobileAppContent(content, data) {
     dep_done: (t.key_events && t.key_events.dep_done) || 0,
     reg_total: ((t.key_events && t.key_events.reg_done) || 0) + ((t.key_events && t.key_events.registration) || 0),
   }));
-  const trendPoints = allTrend;
+  // Period picker here only narrows the DAILY TREND CHARTS below -- it does
+  // NOT re-scope the KPI tiles/donuts/table above, which stay the properly
+  // GA4-deduplicated totals for the whole window. Summing per-day
+  // active_users across a shorter window would double-count anyone active
+  // on more than one of those days, silently turning a real metric into an
+  // inflated one -- not worth it just to make the period picker "complete."
+  const trendPoints = MOBILE_APP_PERIOD_DAYS === "all" ? allTrend : allTrend.slice(-MOBILE_APP_PERIOD_DAYS);
+
+  const periodPickerRow = document.createElement("div");
+  periodPickerRow.style.cssText = "display:flex;gap:6px;margin-bottom:12px;";
+  const periodOptions = [{ key: "all", label: "Весь период" }, { key: 28, label: "Последние 28 дней" }, { key: 7, label: "Последние 7 дней" }];
+  periodPickerRow.innerHTML = periodOptions.map(o => `<button class="period-pill${MOBILE_APP_PERIOD_DAYS === o.key ? " active" : ""}" data-app-period="${o.key}">${o.label}</button>`).join("");
+  periodPickerRow.querySelectorAll("button").forEach(btn => {
+    btn.addEventListener("click", () => {
+      const key = btn.dataset.appPeriod;
+      MOBILE_APP_PERIOD_DAYS = key === "all" ? "all" : Number(key);
+      renderMobileAppContent(content, data);
+    });
+  });
+  content.appendChild(periodPickerRow);
 
   const trendCard1 = document.createElement("div");
   trendCard1.className = "card reveal";
