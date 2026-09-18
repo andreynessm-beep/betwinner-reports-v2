@@ -2945,6 +2945,7 @@ function renderMobileApp(panel, data) {
   switcher.querySelectorAll("button").forEach(btn => {
     btn.addEventListener("click", () => {
       MOBILE_APP_PLATFORM = btn.dataset.mobilePlatform;
+      MOBILE_APP_STREAM = "all"; // platform changed -- the stream list is scoped to it, so reset
       switcher.querySelectorAll("button").forEach(b => b.classList.toggle("active", b === btn));
       renderMobileAppContent(content, data);
     });
@@ -2953,9 +2954,50 @@ function renderMobileApp(panel, data) {
   renderMobileAppContent(content, data);
 }
 
+// Scopes a "p"-shaped view (same fields renderMobileAppContent reads off
+// combinePlatforms()/data.platforms[k]) down to exactly one GEO stream, so
+// the user can evaluate a single app instead of only platform aggregates.
+function singleStreamView(stream, platformLabel) {
+  const key_events_total = { ...stream.key_events };
+  const trend = (stream.trend || []).map(t => ({ ...t }));
+  return {
+    label: `${stream.stream_name} (${platformLabel})`,
+    totals: { active_users: stream.active_users, event_count: stream.event_count, new_users: stream.new_users || 0 },
+    key_events_total,
+    trend,
+    streams: [stream],
+  };
+}
+
+let MOBILE_APP_STREAM = "all";
+
 function renderMobileAppContent(content, data) {
   content.innerHTML = "";
-  const p = MOBILE_APP_PLATFORM === "combined" ? combinePlatforms(data) : data.platforms[MOBILE_APP_PLATFORM];
+  const basePlatform = MOBILE_APP_PLATFORM === "combined" ? combinePlatforms(data) : data.platforms[MOBILE_APP_PLATFORM];
+
+  // app/stream filter -- scoped to whatever the platform switcher currently
+  // shows (all streams across both platforms for "Общее", or just that
+  // platform's streams). Sits right under the platform tabs since it's a
+  // second-level narrowing of the same selection, not an independent filter.
+  const streamFilterRow = document.createElement("div");
+  streamFilterRow.className = "site-filter-row";
+  streamFilterRow.style.marginBottom = "16px";
+  const streamLabel = document.createElement("label");
+  streamLabel.textContent = "Приложение:";
+  const streamSelect = document.createElement("select");
+  streamSelect.className = "site-select";
+  const streamOptions = [{ value: "all", text: `Все потоки (${basePlatform.streams.length})` }]
+    .concat(basePlatform.streams.map(s => ({ value: s.stream_id, text: `${s.stream_name} — ${s.active_users.toLocaleString("ru-RU")} польз.` })));
+  streamSelect.innerHTML = streamOptions.map(o => `<option value="${o.value}"${MOBILE_APP_STREAM === o.value ? " selected" : ""}>${o.text}</option>`).join("");
+  streamSelect.addEventListener("change", () => {
+    MOBILE_APP_STREAM = streamSelect.value;
+    renderMobileAppContent(content, data);
+  });
+  streamFilterRow.append(streamLabel, streamSelect);
+  content.appendChild(streamFilterRow);
+
+  const selectedStream = MOBILE_APP_STREAM !== "all" ? basePlatform.streams.find(s => s.stream_id === MOBILE_APP_STREAM) : null;
+  const p = selectedStream ? singleStreamView(selectedStream, selectedStream.platform || data.platforms[MOBILE_APP_PLATFORM]?.label || "") : basePlatform;
 
   // KPI row
   const kpiWrap = document.createElement("div");
@@ -3031,7 +3073,7 @@ function renderMobileAppContent(content, data) {
   donutRow.className = "two-col";
   donutRow.style.marginBottom = "16px";
 
-  if (MOBILE_APP_PLATFORM === "combined") {
+  if (MOBILE_APP_PLATFORM === "combined" && !selectedStream) {
     const platCard = document.createElement("div");
     platCard.className = "card reveal";
     const platTitle = document.createElement("div");
