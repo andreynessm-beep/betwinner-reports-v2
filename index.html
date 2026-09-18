@@ -606,7 +606,7 @@ const GLOSSARY = {
   sign_up_start:           { label: "Клик по кнопке «Регистрация»",  desc: "Клиент нажал именно кнопку «Регистрация» в шапке сайта. Не считает переходы по прямым ссылкам и рекламе (это часть, а не весь трафик на регистрацию, см. «Зашли на регистрацию»)." },
   sign_up_method_select:   { label: "Выбор способа регистрации",     desc: "Клиент выбрал способ регистрации, например по телефону, почте или через соцсеть. Фиксируется и по клику на вкладке, и по внутреннему техническому сигналу сайта.", detailLabel: "Какой способ" },
   sign_up_success:         { label: "Успешная регистрация",          desc: "Клиент успешно завершил регистрацию. Основной сигнал: собственное техническое JS-событие сайта о завершении регистрации, дополнительно подстраховано появлением экрана «Регистрация завершена» и сменой адреса страницы. Засчитывается один раз за посещение сайта, даже если сработало несколько внутренних сигналов подтверждения.", detailLabel: "Каким способом" },
-  payment_gateway_transition: { label: "Переход в платёжку",         desc: "Клиент на странице пополнения счёта выбрал способ оплаты (кошелёк / платёжная система / криптовалюта) и подтвердил переход к оплате. Ближайший к реальному депозиту сигнал, который можно поймать технически — сам факт зачисления депозита происходит на стороне платёжного провайдера и нам не виден. Не гарантирует завершённую оплату. Засчитывается один раз за сессию.", detailLabel: "Какой способ" },
+  payment_gateway_click:   { label: "Переход в платёжку",           desc: "Клиент со страницы пополнения счёта дошёл до iframe оплаты (платёжного окна). Ближайший к реальному депозиту сигнал, который можно поймать технически — сам факт зачисления депозита происходит на стороне платёжного провайдера и нам не виден. Не гарантирует завершённую оплату. Засчитывается один раз за сессию.", detailLabel: "Какой способ" },
   nav_click:               { label: "Клик по меню",                  desc: "Клик по пункту главного меню сайта.", detailLabel: "Какой пункт меню" },
   footer_click:            { label: "Клик по ссылке в подвале",      desc: "Клик по одной из обычных ссылок в самом низу сайта.", detailLabel: "Какая ссылка" },
   promo_click:             { label: "Клик по промо-баннеру",         desc: "Клик по одному из рекламных баннеров на главной странице.", detailLabel: "Какой баннер" },
@@ -705,7 +705,7 @@ const KNOWN_EVENT_ORDER = Object.keys(GLOSSARY);
 // engagement clicks, then passive/technical/system events last.
 const EVENT_PRIORITY_ORDER = [
   // core conversion outcomes
-  "sign_up_success", "payment_gateway_transition", "bet_placed", "deposit_click", "withdraw_click",
+  "sign_up_success", "payment_gateway_click", "bet_placed", "deposit_click", "withdraw_click",
   // registration funnel steps (leading indicators)
   "reg_form_start", "sign_up_method_select", "reg_submit_click", "reg_full_submit",
   "sign_up_start", "reg_page_view",
@@ -2206,7 +2206,7 @@ function renderTab(containerId, p, deviceLabel) {
     // those ARE inherently per-visit concepts and don't make sense per-user.
     const stepsFrom = fEvents => [
       { name: "__visit", label: "Посетители сайта", value: fTotals.totalUsers, desc: "Все уникальные пользователи за период (с учётом фильтров)." },
-      ...["reg_form_start", "sign_up_success", "payment_gateway_transition"].map(name => ({
+      ...["reg_form_start", "sign_up_success", "payment_gateway_click"].map(name => ({
         name, label: GLOSSARY[name].label, value: (fEvents[name] && fEvents[name].users) || 0, desc: GLOSSARY[name].desc,
       })),
     ];
@@ -2670,13 +2670,23 @@ function buildDomainComparisonTable(panel, domains) {
   title.style.cssText = "font-size:13px;color:var(--text-secondary);margin-bottom:10px;font-weight:600;";
   wrap.appendChild(title);
 
+  // Period-reactive: reads the same global PERIOD_STATE (via inPeriodRange)
+  // that drives the KPI/funnel numbers below, off each domain's own flat
+  // rows -- so switching the period picker updates this table too, instead
+  // of it silently staying pinned to "Весь период" while everything else
+  // in the tab moves.
+  const noFilter = { country: "all", channel: "all", os: "all" };
   const rows = domains.map(d => {
     const c = combineProps(d.desktop, d.mobile);
-    const sessions = c.totals.sessions || 0;
-    const totalUsers = c.totals.totalUsers || 0;
-    const signUps = c.events.sign_up_success?.users || 0;
+    const fSessionRows = filterSessionRows(c.filter_session_rows, noFilter);
+    const fEventRows = filterEventRows(c.filter_event_rows, noFilter);
+    const fTotals = computeFilteredTotals(fSessionRows);
+    const fEvents = computeFilteredEvents(fEventRows);
+    const sessions = fTotals.sessions || 0;
+    const totalUsers = fTotals.totalUsers || 0;
+    const signUps = fEvents.sign_up_success?.users || 0;
     const conversion = totalUsers ? signUps / totalUsers * 100 : 0;
-    return { name: d.name, sessions, totalUsers, signUps, conversion, bounceRate: c.totals.bounceRate || 0 };
+    return { name: d.name, sessions, totalUsers, signUps, conversion, bounceRate: fTotals.bounceRate || 0 };
   });
 
   const COLS = [
@@ -3228,8 +3238,15 @@ async function renderAll(site) {
     const domains = fetched.map(d => ({ name: d.name, desktop: d.desktop, mobile: d.mobile }));
     // combineProps is associative (every field it merges is a sum or a
     // session-weighted average), so the network-wide total is just repeated
-    // pairwise combination -- no separate aggregation logic needed.
+    // pairwise combination -- no separate aggregation logic needed. It also
+    // concatenates filter_session_rows/filter_event_rows/etc, so the result
+    // already carries everything renderTab's hasFlat path needs -- Full GEO
+    // was just never given a period-picker to actually drive PERIOD_STATE,
+    // so it silently always rendered "Весь период" even though the
+    // underlying flat rows were period-capable the whole time.
     const combined = domains.map(d => combineProps(d.desktop, d.mobile)).reduce((acc, cur) => combineProps(acc, cur));
+    document.getElementById("period-picker").style.display = "";
+    buildPeriodPicker((combined.trend || []).map(t => t.date).sort());
     const panel = document.getElementById("panel-combined");
     renderTab("panel-combined", combined, `Сводно по ${domains.length} рынкам`);
     buildDomainComparisonTable(panel, domains);
