@@ -2972,6 +2972,25 @@ function streamsMatchingDomain(domain, data) {
   return all;
 }
 
+// Reverse of the above: given whatever's currently selected in the app tab's
+// "Приложение" filter, figure out which ВЕБ domain it corresponds to (if
+// any) -- so the GEO context can flow ПРИЛОЖЕНИЕ -> ВЕБ/КОНСОЛЬ too, not
+// only ВЕБ -> ПРИЛОЖЕНИЕ (colleague feedback 18.09.2026: "обратный сквозной").
+function domainForMobileStream(streamValue, data) {
+  if (!streamValue || streamValue === "all") return null;
+  if (streamValue.startsWith("geo:")) return streamValue.slice(4);
+  let pkg = null;
+  Object.values(data.platforms).forEach(p => {
+    const s = p.streams.find(s => s.stream_id === streamValue);
+    if (s) pkg = (s.package || "").toLowerCase();
+  });
+  if (!pkg) return null;
+  for (const [domain, keywords] of Object.entries(DOMAIN_TO_STREAM_KEYWORDS)) {
+    if (keywords.some(kw => pkg.includes(kw))) return domain;
+  }
+  return null;
+}
+
 // Builds a "p"-shaped view (same as singleStreamView) but scoped to every
 // stream matching a domain's GEO, combined -- for when several packages
 // (e.g. Nigeria's vac.ng + _ng.client on Android, plus iOS) all belong to
@@ -3345,7 +3364,17 @@ async function renderAll(site) {
     const panel = document.getElementById("panel-combined");
     renderTab("panel-combined", combined, `Сводно по ${domains.length} рынкам`);
     buildDomainComparisonTable(panel, domains);
-    panel.classList.add("active");
+    // ПК / Моб across all markets: combineProps is a generic pairwise merge,
+    // so reducing every domain's desktop (or mobile) side alone gives the
+    // network-wide per-device view -- same renderTab, same period picker.
+    const allDesktop = domains.map(d => d.desktop).reduce((a, c) => combineProps(a, c));
+    const allMobile = domains.map(d => d.mobile).reduce((a, c) => combineProps(a, c));
+    renderTab("panel-desktop", allDesktop, `ПК по ${domains.length} рынкам`);
+    renderTab("panel-mobile", allMobile, `Моб по ${domains.length} рынкам`);
+    document.getElementById("device-tabs").style.display = "";
+    const activeBtnFG = document.querySelector("#device-tabs .tab-btn.active") || document.querySelector("#device-tabs .tab-btn");
+    document.querySelectorAll(".tab-panel").forEach(p => p.classList.remove("active"));
+    document.getElementById("panel-" + activeBtnFG.dataset.tab).classList.add("active");
     document.getElementById("report-title").textContent = "Full GEO — веб-аналитика по всем рынкам";
     document.getElementById("report-sub").innerHTML = `Обновлено: <b id="generated-at">${new Date(REPORT_INDEX.generated_at).toLocaleString("ru-RU", { dateStyle: "medium", timeStyle: "short" })}</b> · Источник: GA4 · ${domains.length} рынков суммарно`;
     setTimeout(() => {
@@ -3457,9 +3486,19 @@ document.querySelectorAll(".toplevel-btn").forEach(btn => {
     document.getElementById("view-console").style.display = view === "console" ? "" : "none";
     document.getElementById("panel-mobile-app").style.display = view === "app" ? "" : "none";
 
-    if (view === "console" && !CONSOLE_LOADED) {
-      document.getElementById("console-iframe").src = "search-console.html";
-      CONSOLE_LOADED = true;
+    if (view === "console") {
+      // Reverse sync (colleague feedback 18.09.2026, "обратный сквозной"):
+      // whatever GEO is currently selected on ПРИЛОЖЕНИЕ carries into
+      // КОНСОЛЬ's domain picker too.
+      const mData = await fetchMobileApp();
+      const domain = domainForMobileStream(MOBILE_APP_STREAM, mData);
+      if (!CONSOLE_LOADED) {
+        const src = domain ? `search-console.html?site=${encodeURIComponent(domain)}` : "search-console.html";
+        document.getElementById("console-iframe").src = src;
+        CONSOLE_LOADED = true;
+      } else if (domain) {
+        document.getElementById("console-iframe").contentWindow.postMessage({ type: "set-domain", domain }, "*");
+      }
     }
     if (view === "app") {
       const data = await fetchMobileApp();
@@ -3477,7 +3516,15 @@ document.querySelectorAll(".toplevel-btn").forEach(btn => {
       document.getElementById("report-sub").innerHTML = `Обновлено: <b>${new Date(data.generated_at).toLocaleString("ru-RU", { dateStyle: "medium", timeStyle: "short" })}</b> · Источник: Firebase → GA4 · данные с 17.09.2026 (миграция на новые property)`;
       setTimeout(() => document.querySelectorAll(".reveal:not(.revealed)").forEach(el => el.classList.add("revealed")), 20);
     } else if (view === "web") {
-      renderAll(CURRENT_SITE || "__full_geo__");
+      // Reverse sync: same idea, into the ВЕБ domain picker.
+      const mData = await fetchMobileApp();
+      const domain = domainForMobileStream(MOBILE_APP_STREAM, mData);
+      if (domain && REPORT_INDEX.domains.some(d => d.name === domain) && domain !== CURRENT_SITE) {
+        document.getElementById("site-switcher").value = domain;
+        renderAll(domain);
+      } else {
+        renderAll(CURRENT_SITE || "__full_geo__");
+      }
     }
   });
 });

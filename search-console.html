@@ -521,6 +521,17 @@ async function init() {
   document.getElementById("updated-note").textContent =
     "Данные за " + DATA.start_date + " — " + DATA.end_date + " · обновлено " + new Date(DATA.generated_at).toLocaleString("ru-RU");
 }
+// Reverse GEO sync from the parent report (ПРИЛОЖЕНИЕ -> КОНСОЛЬ): parent
+// posts {type:"set-domain", domain} when this page is already loaded inside
+// the iframe and the user picks a different GEO on the app tab.
+window.addEventListener("message", (e) => {
+  if (!e.data || e.data.type !== "set-domain" || !e.data.domain) return;
+  const select = document.getElementById("domain-select");
+  if (![...select.options].some(o => o.value === e.data.domain)) return;
+  select.value = e.data.domain;
+  renderDomain(e.data.domain);
+});
+
 init();
 </script>
 </body>
