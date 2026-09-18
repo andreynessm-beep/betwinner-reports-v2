@@ -2980,11 +2980,19 @@ function renderMobileAppContent(content, data) {
     col.appendChild(buildTrendChart(points, key, label, colorVar));
     return col;
   }
-  const trendPoints = p.trend.map(t => ({
+  // Drop today's still-processing point once there's a prior day to show
+  // instead: GA4 standard reports on a brand-new property lag badly same-day
+  // (17.09 read live showed 29K users / 2.2M events; the same day re-read
+  // 17.09 once processed showed 184K / 36.5M) -- charting the live, partial
+  // "today" number next to a finalized prior day reads as a traffic crash
+  // that isn't real, so today just isn't plotted yet each day it's live.
+  const allTrend = p.trend.map(t => ({
     date: t.date, active_users: t.active_users, event_count: t.event_count,
     dep_done: (t.key_events && t.key_events.dep_done) || 0,
     reg_total: ((t.key_events && t.key_events.reg_done) || 0) + ((t.key_events && t.key_events.registration) || 0),
   }));
+  const todayStr = new Date().toISOString().slice(0, 10);
+  const trendPoints = allTrend.length > 1 ? allTrend.filter(t => t.date !== todayStr) : allTrend;
 
   const trendCard1 = document.createElement("div");
   trendCard1.className = "card reveal";
@@ -3011,6 +3019,7 @@ function renderMobileAppContent(content, data) {
   );
   trendCard2.appendChild(trendRow2);
   content.appendChild(trendCard2);
+
 
   // donut charts: platform split (only meaningful in "combined" view, where
   // there are 2 real categories to compare) and key-event composition
