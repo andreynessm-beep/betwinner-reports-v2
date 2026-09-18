@@ -2987,7 +2987,7 @@ function renderMobileAppContent(content, data) {
   const streamSelect = document.createElement("select");
   streamSelect.className = "site-select";
   const streamOptions = [{ value: "all", text: `Все потоки (${basePlatform.streams.length})` }]
-    .concat(basePlatform.streams.map(s => ({ value: s.stream_id, text: `${s.stream_name} — ${s.active_users.toLocaleString("ru-RU")} польз.` })));
+    .concat(basePlatform.streams.map(s => ({ value: s.stream_id, text: s.package ? `${s.stream_name} — ${s.package}` : s.stream_name })));
   streamSelect.innerHTML = streamOptions.map(o => `<option value="${o.value}"${MOBILE_APP_STREAM === o.value ? " selected" : ""}>${o.text}</option>`).join("");
   streamSelect.addEventListener("change", () => {
     MOBILE_APP_STREAM = streamSelect.value;
@@ -3034,8 +3034,7 @@ function renderMobileAppContent(content, data) {
     dep_done: (t.key_events && t.key_events.dep_done) || 0,
     reg_total: ((t.key_events && t.key_events.reg_done) || 0) + ((t.key_events && t.key_events.registration) || 0),
   }));
-  const todayStr = new Date().toISOString().slice(0, 10);
-  const trendPoints = allTrend.length > 1 ? allTrend.filter(t => t.date !== todayStr) : allTrend;
+  const trendPoints = allTrend;
 
   const trendCard1 = document.createElement("div");
   trendCard1.className = "card reveal";
