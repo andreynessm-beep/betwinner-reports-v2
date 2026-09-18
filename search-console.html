@@ -301,12 +301,18 @@ function sitemapStatusPill(sm) {
   return `<span class="status-pill status-ok">OK</span>`;
 }
 
-let PERIOD_DAYS = "all"; // "all" | 28 | 7
+let PERIOD_DAYS = "all"; // "all" | 28 | 7 -- ignored when SELECTED_DAY is set
+let SELECTED_DAY = null; // "YYYY-MM-DD" | null -- a single specific day, overrides PERIOD_DAYS
 let CURRENT_DOMAIN = null;
 
 function filteredDaily(daily) {
+  if (SELECTED_DAY) return daily.filter(p => p.date === SELECTED_DAY);
   if (PERIOD_DAYS === "all") return daily;
   return daily.slice(-PERIOD_DAYS);
+}
+
+function periodDateSet(daily) {
+  return new Set(filteredDaily(daily).map(p => p.date));
 }
 
 // GSC's own metrics aren't simple sums -- CTR/position are re-derived from
@@ -322,40 +328,89 @@ function computeTotals(daily) {
   });
   return {
     clicks, impressions,
-    ctr: impressions > 0 ? clicks / impressions * 100 : 0,
+    ctr: impressions > 0 ? clicks / impressions : 0,
     position: impressions > 0 ? positionWeighted / impressions : 0,
   };
 }
 
-function renderPeriodPicker() {
+// Re-aggregates date+query or date+page rows down to "top N for whatever
+// period is currently selected" -- the static top_queries/top_pages (no
+// date dimension) can only ever show the full 91-day picture, which is why
+// the tables used to stay frozen while everything else on the page reacted
+// to the period picker.
+function aggregateDimension(dailyRows, dimKey, dateSet, limit) {
+  const byKey = new Map();
+  (dailyRows || []).forEach(r => {
+    if (!dateSet.has(r.date)) return;
+    const cur = byKey.get(r[dimKey]) || { clicks: 0, impressions: 0 };
+    cur.clicks += r.clicks; cur.impressions += r.impressions;
+    byKey.set(r[dimKey], cur);
+  });
+  return Array.from(byKey.entries())
+    .map(([key, v]) => ({ [dimKey]: key, clicks: v.clicks, impressions: v.impressions, ctr: v.impressions ? v.clicks / v.impressions : 0 }))
+    .sort((a, b) => b.clicks - a.clicks)
+    .slice(0, limit);
+}
+
+function renderPeriodPicker(daily) {
   const el = document.getElementById("period-picker");
+  el.innerHTML = "";
+  const rollingRow = document.createElement("div");
+  rollingRow.style.cssText = "display:flex;gap:6px;flex-wrap:wrap;";
   const options = [{ key: "all", label: "Весь период (91 дн)" }, { key: 28, label: "Последние 28 дней" }, { key: 7, label: "Последние 7 дней" }];
-  el.innerHTML = options.map(o => `<button class="period-pill${PERIOD_DAYS === o.key ? " active" : ""}" data-period="${o.key}">${o.label}</button>`).join("");
-  el.querySelectorAll("button").forEach(btn => {
+  rollingRow.innerHTML = options.map(o => `<button class="period-pill${!SELECTED_DAY && PERIOD_DAYS === o.key ? " active" : ""}" data-period="${o.key}">${o.label}</button>`).join("");
+  rollingRow.querySelectorAll("button").forEach(btn => {
     btn.addEventListener("click", () => {
       const key = btn.dataset.period;
       PERIOD_DAYS = key === "all" ? "all" : Number(key);
+      SELECTED_DAY = null;
       if (CURRENT_DOMAIN) renderDomain(CURRENT_DOMAIN);
     });
   });
+  el.appendChild(rollingRow);
+
+  // individual-day pills -- "смотреть по дням какие-то данные за конкретный
+  // день" (colleague/user feedback 18.09.2026): every day GSC has data for,
+  // clickable to pin the whole page to just that one day.
+  const daysRow = document.createElement("div");
+  daysRow.style.cssText = "display:flex;gap:4px;flex-wrap:wrap;margin-top:8px;max-height:64px;overflow-y:auto;";
+  daily.forEach(p => {
+    const btn = document.createElement("button");
+    btn.className = "period-pill" + (SELECTED_DAY === p.date ? " active" : "");
+    btn.style.padding = "5px 9px";
+    btn.style.fontSize = "11.5px";
+    btn.textContent = p.date.slice(5); // MM-DD, year is implied by context
+    btn.title = p.date;
+    btn.addEventListener("click", () => {
+      SELECTED_DAY = SELECTED_DAY === p.date ? null : p.date;
+      if (CURRENT_DOMAIN) renderDomain(CURRENT_DOMAIN);
+    });
+    daysRow.appendChild(btn);
+  });
+  el.appendChild(daysRow);
 }
 
-function renderDomain(domain) {
+let SC_RENDER_GEN = 0;
+async function renderDomain(domain) {
+  const myGen = ++SC_RENDER_GEN;
   CURRENT_DOMAIN = domain;
-  renderPeriodPicker();
-  const d = DATA.domains[domain];
   const content = document.getElementById("content");
+  content.innerHTML = `<div class="empty-state"><div class="big">⏳</div>Загрузка…</div>`;
+  const d = await fetchScDomain(domain);
+  if (myGen !== SC_RENDER_GEN) return; // user switched domain again while this was loading
   content.innerHTML = "";
   if (!d || !d.daily || d.daily.length === 0) {
+    document.getElementById("period-picker").innerHTML = "";
     content.innerHTML = `<div class="card"><div class="empty-state"><div class="big">🔒</div>
       Нет данных Search Console для <b>${domain}</b> — либо нет доступа (verification pending),
       либо реального трафика из поиска пока нет.</div></div>`;
     return;
   }
+  renderPeriodPicker(d.daily);
 
   const daily = filteredDaily(d.daily);
-  const t = PERIOD_DAYS === "all" ? d.totals : computeTotals(daily);
-  const periodLabel = PERIOD_DAYS === "all" ? "91 день" : `${PERIOD_DAYS} дн`;
+  const t = (PERIOD_DAYS === "all" && !SELECTED_DAY) ? d.totals : computeTotals(daily);
+  const periodLabel = SELECTED_DAY ? SELECTED_DAY : (PERIOD_DAYS === "all" ? "91 день" : `${PERIOD_DAYS} дн`);
   const peakDay = daily.reduce((best, p) => (p.clicks > best.clicks ? p : best), daily[0]);
   const sitemapsOk = d.sitemaps.filter(sm => sm.errors === 0).length;
 
@@ -392,17 +447,24 @@ function renderDomain(domain) {
   chartsCard2.appendChild(chartsRow2);
   content.appendChild(chartsCard2);
 
+  // Re-aggregated from date+query / date+page rows for whatever period is
+  // currently selected -- these used to always show the fixed 91-day
+  // picture regardless of the period picker.
+  const dateSet = periodDateSet(d.daily);
+  const periodQueries = aggregateDimension(d.daily_queries, "query", dateSet, 15);
+  const periodPages = aggregateDimension(d.daily_pages, "page", dateSet, 15);
+
   const tablesRow = document.createElement("div"); tablesRow.className = "tables-row";
   const qCard = document.createElement("div"); qCard.className = "card"; qCard.innerHTML = `<h2>Топ запросов</h2>`;
   qCard.appendChild(buildExpandableTable(
     ["Запрос", "Клики", "CTR"],
-    d.top_queries.map(q => [q.query, fmtInt(q.clicks), fmtPct(q.ctr)]),
+    periodQueries.map(q => [q.query, fmtInt(q.clicks), fmtPct(q.ctr)]),
     1
   ));
   const pCard = document.createElement("div"); pCard.className = "card"; pCard.innerHTML = `<h2>Топ страниц</h2>`;
   pCard.appendChild(buildExpandableTable(
     ["Страница", "Клики", "CTR"],
-    d.top_pages.map(p => [p.page.replace(/^https?:\/\/[^/]+/, ""), fmtInt(p.clicks), fmtPct(p.ctr)]),
+    periodPages.map(p => [p.page.replace(/^https?:\/\/[^/]+/, ""), fmtInt(p.clicks), fmtPct(p.ctr)]),
     1
   ));
   tablesRow.append(qCard, pCard);
@@ -420,21 +482,39 @@ function renderDomain(domain) {
   content.appendChild(smCard);
 }
 
+// Per-domain data is gzipped and fetched lazily on demand (only the domain
+// actually being viewed crosses the network) -- same pattern as the ВЕБ
+// tab's fetchDomain(). The un-split searchconsole.json this replaced hit
+// 52MB once daily_queries/daily_pages were added for the period picker's
+// tables; per-domain gzip brings the total down to ~5.7MB and each single
+// fetch to well under 1MB.
+const SC_DOMAIN_CACHE = {};
+async function fetchScDomain(name) {
+  if (SC_DOMAIN_CACHE[name]) return SC_DOMAIN_CACHE[name];
+  const res = await fetch(`data/sc/${encodeURIComponent(name)}.json.gz`, { cache: "no-store" });
+  const decompressed = res.body.pipeThrough(new DecompressionStream("gzip"));
+  const text = await new Response(decompressed).text();
+  const json = JSON.parse(text);
+  SC_DOMAIN_CACHE[name] = json;
+  return json;
+}
+
 async function init() {
-  const resp = await fetch("data/searchconsole.json");
+  const resp = await fetch("data/sc/index.json");
   DATA = await resp.json();
 
   const select = document.getElementById("domain-select");
-  Object.keys(DATA.domains).forEach(domain => {
+  DATA.domains.forEach(dm => {
     const opt = document.createElement("option");
-    opt.value = domain;
-    opt.textContent = domain + " — " + DATA.domains[domain].geo;
+    opt.value = dm.name;
+    opt.textContent = dm.name + " — " + dm.geo;
     select.appendChild(opt);
   });
   select.addEventListener("change", () => renderDomain(select.value));
 
+  const domainNames = DATA.domains.map(dm => dm.name);
   const params = new URLSearchParams(location.search);
-  const initial = params.get("site") && DATA.domains[params.get("site")] ? params.get("site") : Object.keys(DATA.domains)[0];
+  const initial = params.get("site") && domainNames.includes(params.get("site")) ? params.get("site") : domainNames[0];
   select.value = initial;
   renderDomain(initial);
 
