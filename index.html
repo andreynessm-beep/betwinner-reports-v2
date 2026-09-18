@@ -2907,9 +2907,10 @@ function combinePlatforms(data) {
       streamMap[label] = { ...s, stream_name: label, platform: p.label };
     });
     (p.trend || []).forEach(t => {
-      trendByDate[t.date] = trendByDate[t.date] || { date: t.date, active_users: 0, event_count: 0, key_events: {} };
+      trendByDate[t.date] = trendByDate[t.date] || { date: t.date, active_users: 0, event_count: 0, new_users: 0, key_events: {} };
       trendByDate[t.date].active_users += t.active_users;
       trendByDate[t.date].event_count += t.event_count;
+      trendByDate[t.date].new_users += (t.new_users || 0);
       Object.keys(EVENT_GLOSSARY).forEach(ev => {
         trendByDate[t.date].key_events[ev] = (trendByDate[t.date].key_events[ev] || 0) + ((t.key_events && t.key_events[ev]) || 0);
       });
@@ -2987,7 +2988,7 @@ function renderMobileAppContent(content, data) {
   // "today" number next to a finalized prior day reads as a traffic crash
   // that isn't real, so today just isn't plotted yet each day it's live.
   const allTrend = p.trend.map(t => ({
-    date: t.date, active_users: t.active_users, event_count: t.event_count,
+    date: t.date, active_users: t.active_users, new_users: t.new_users || 0,
     dep_done: (t.key_events && t.key_events.dep_done) || 0,
     reg_total: ((t.key_events && t.key_events.reg_done) || 0) + ((t.key_events && t.key_events.registration) || 0),
   }));
@@ -3002,7 +3003,7 @@ function renderMobileAppContent(content, data) {
   trendRow1.className = "two-col";
   trendRow1.append(
     trendMiniChart("Активные пользователи", trendPoints, "active_users", "Активные пользователи", "--series-1"),
-    trendMiniChart("События", trendPoints, "event_count", "События", "--series-3"),
+    trendMiniChart("Новые пользователи", trendPoints, "new_users", "Новые пользователи", "--series-3"),
   );
   trendCard1.appendChild(trendRow1);
   content.appendChild(trendCard1);
